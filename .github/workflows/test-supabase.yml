@@ -1,0 +1,40 @@
+name: Test Supabase connection
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-storage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify Supabase bucket access
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import urllib.request
+          import urllib.error
+          import json
+
+          url = os.environ["SUPABASE_URL"].rstrip("/") + "/storage/v1/bucket/chatgpt-radio"
+          key = os.environ["SUPABASE_SECRET_KEY"]
+          request = urllib.request.Request(url, headers={
+              "apikey": key,
+              "Authorization": "Bearer " + key,
+          })
+          try:
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  data = json.load(response)
+              if data.get("name") != "chatgpt-radio":
+                  raise RuntimeError("Unexpected storage bucket response")
+              print("Success: authenticated to Supabase and found chatgpt-radio bucket.")
+          except urllib.error.HTTPError as exc:
+              print(f"Supabase connection failed with HTTP {exc.code}.")
+              raise SystemExit(1)
+          PY
