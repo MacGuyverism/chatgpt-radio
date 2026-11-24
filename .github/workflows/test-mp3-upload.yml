@@ -11,6 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Install FFmpeg and FFprobe
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+          ffmpeg -version | head -n 1
+          ffprobe -version | head -n 1
       - name: Generate 64 kbps mono test MP3
         run: |
           ffmpeg -hide_banner -loglevel error -f lavfi -i "sine=frequency=660:duration=3" -ac 1 -ar 24000 -codec:a libmp3lame -b:a 64k -y test-radio.mp3
