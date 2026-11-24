@@ -1,0 +1,97 @@
+name: Test AI radio voice
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  voice-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+      - name: Generate and encode voice sample
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+          import urllib.error
+          from pathlib import Path
+
+          key = os.environ.get("OPENAI_API_KEY", "")
+          if not key:
+              raise SystemExit("Missing OPENAI_API_KEY repository secret")
+          script = (
+              "Good morning, northern Rhode Island! You're listening to ChatGPT Radio. "
+              "Coming up, the stories shaping our world, the latest closer to home, "
+              "and a little surprise to make your commute more interesting. "
+              "First, here's a quick sound check from your new radio host. "
+              "Clear skies or storm clouds, we'll keep you informed. Let's get started!"
+          )
+          body = {
+              "model": "gpt-4o-mini-tts",
+              "voice": "nova",
+              "input": script,
+              "instructions": "Warm, confident, natural female-sounding American radio news presenter. Conversational, upbeat but professional. Clear enunciation, natural pauses, no exaggerated drama.",
+              "response_format": "mp3"
+          }
+          req = urllib.request.Request(
+              "https://api.openai.com/v1/audio/speech",
+              data=json.dumps(body).encode(),
+              headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"},
+              method="POST"
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=120) as resp:
+                  Path("voice-original.mp3").write_bytes(resp.read())
+          except urllib.error.HTTPError as exc:
+              print("OpenAI speech generation failed: HTTP", exc.code)
+              raise SystemExit(1)
+          print("Generated voice sample.")
+          PY
+          ffmpeg -hide_banner -loglevel error -i voice-original.mp3 -ac 1 -ar 24000 -codec:a libmp3lame -b:a 64k -y voice-sample.mp3
+          ffprobe -v error -show_entries stream=codec_name,channels,bit_rate -show_entries format=duration -of default=noprint_wrappers=1 voice-sample.mp3
+      - name: Upload voice sample to Supabase
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import urllib.request
+          import urllib.error
+          from pathlib import Path
+
+          base = os.environ["SUPABASE_URL"].rstrip("/")
+          key = os.environ["SUPABASE_SECRET_KEY"]
+          payload = Path("voice-sample.mp3").read_bytes()
+          path = "tests/voice-sample.mp3"
+          url = f"{base}/storage/v1/object/chatgpt-radio/{path}"
+          req = urllib.request.Request(url, data=payload, method="POST", headers={
+              "apikey": key,
+              "Authorization": "Bearer " + key,
+              "Content-Type": "audio/mpeg",
+              "x-upsert": "true",
+              "cache-control": "60"
+          })
+          try:
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  print("Upload status:", response.status)
+              public_url = f"{base}/storage/v1/object/public/chatgpt-radio/{path}"
+              with urllib.request.urlopen(public_url, timeout=30) as response:
+                  assert response.status == 200
+                  assert response.read() == payload
+              print("SUCCESS: Voice sample verified.")
+              print("Listen at:", public_url)
+          except urllib.error.HTTPError as exc:
+              print("Supabase request failed: HTTP", exc.code)
+              raise SystemExit(1)
+          PY
