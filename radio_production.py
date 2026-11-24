@@ -164,16 +164,64 @@ for index, chunk in enumerate(chunks, 1):
     print("Narrated", index, "of", len(chunks), flush=True)
 
 parts = sorted(out.glob("part-*.mp3"))
-(out / "concat.txt").write_text("".join("file '" + p.name + "'\n" for p in parts))
 final = out / ("chatgpt-radio-" + date + ".mp3")
-subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-                "-f", "concat", "-safe", "0", "-i", str(out / "concat.txt"),
-                "-ac", "1", "-ar", "24000", "-c:a", "libmp3lame",
-                "-b:a", "64k", str(final)], check=True)
-duration = float(subprocess.check_output(["ffprobe", "-v", "error",
-    "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1",
-    str(final)], text=True).strip())
-print("Duration minutes", duration / 60, flush=True)
+
+def assemble_audio():
+    (out / "concat.txt").write_text("".join("file '" + p.name + "'\n" for p in parts))
+    subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                    "-f", "concat", "-safe", "0", "-i", str(out / "concat.txt"),
+                    "-ac", "1", "-ar", "24000", "-c:a", "libmp3lame",
+                    "-b:a", "64k", str(final)], check=True)
+    seconds = float(subprocess.check_output(["ffprobe", "-v", "error",
+        "-show_entries", "format=duration", "-of",
+        "default=noprint_wrappers=1:nokey=1", str(final)], text=True).strip())
+    print("Duration minutes", round(seconds / 60, 3), flush=True)
+    return seconds
+
+duration = assemble_audio()
+# TTS pace varies. Add an original, factual-claim-free end segment if needed.
+# Limit extra paid synthesis and preserve the 27-29 minute publication gate.
+for attempt in range(2):
+    if duration >= 1620:
+        break
+    if duration < 1380:
+        raise RuntimeError("Episode far too short for safe automatic extension")
+    remaining = 1660 - duration
+    target_words = max(90, min(260, round(remaining * 2.35)))
+    reply = json.loads(ai("chat/completions", {
+        "model": "gpt-4.1-mini", "temperature": 0.5,
+        "max_completion_tokens": 650,
+        "messages": [
+            {"role": "system", "content": instructions},
+            {"role": "user", "content": (
+                "Write an original extra closing feature for ChatGPT Radio, about " +
+                str(target_words) + " spoken words. This comes AFTER the broadcast "
+                "closing, so open with 'And before you go, one last thought.' "
+                "Offer a useful, thoughtful everyday-life reflection or a short "
+                "original light joke, followed by a final friendly goodbye. "
+                "No current-event facts, no invented quotes, no repetitive filler. "
+                "Return only spoken prose."
+            )}
+        ]
+    }))
+    extra = reply["choices"][0]["message"]["content"].strip()
+    if len(extra.split()) < 60:
+        raise RuntimeError("Duration extension was too short")
+    audio = ai("audio/speech", {
+        "model": "gpt-4o-mini-tts", "voice": "nova", "input": extra,
+        "instructions": "Warm, confident, natural female-sounding American radio news presenter with a slightly brighter, higher-register speaking voice. Conversational, upbeat but professional. Clear enunciation and natural pauses. Not squeaky or cartoonish.",
+        "response_format": "mp3"
+    })
+    if len(audio) < 1000:
+        raise RuntimeError("Invalid duration extension audio")
+    part = out / ("part-%03d.mp3" % (len(parts) + 1))
+    part.write_bytes(audio)
+    parts.append(part)
+    with (out / "script.txt").open("a") as f:
+        f.write("\n\n" + extra)
+    print("Added closing feature", len(extra.split()), "words", flush=True)
+    duration = assemble_audio()
+
 if not 1620 <= duration <= 1740:
     raise RuntimeError("Outside 27-29 minutes; not publishing")
 
