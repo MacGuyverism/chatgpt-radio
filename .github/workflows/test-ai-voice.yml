@@ -40,7 +40,7 @@ jobs:
               "model": "gpt-4o-mini-tts",
               "voice": "nova",
               "input": script,
-              "instructions": "Warm, confident, natural female-sounding American radio news presenter. Conversational, upbeat but professional. Clear enunciation, natural pauses, no exaggerated drama.",
+              "instructions": "Warm, confident, natural female-sounding American radio news presenter with a slightly brighter, higher-register speaking voice. Conversational, upbeat but professional. Clear enunciation, natural pauses, no exaggerated drama. Avoid an artificially squeaky or cartoonish delivery.",
               "response_format": "mp3"
           }
           req = urllib.request.Request(
