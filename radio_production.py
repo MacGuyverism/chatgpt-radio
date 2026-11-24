@@ -108,8 +108,31 @@ for title, target, guidance in sections:
     segment = response["choices"][0]["message"]["content"].strip()
     count = len(segment.split())
     print("Section", title, count, "words", flush=True)
-    if count < target * 0.65:
-        raise RuntimeError("Section too short: " + title + ". Aborting before narration.")
+    # Ask for a genuine continuation rather than aborting over a small shortfall.
+    # Never require padding when the available reporting cannot support it.
+    if count < target * 0.85:
+        continuation = json.loads(ai("chat/completions", {
+            "model": "gpt-4.1-mini", "temperature": 0.4,
+            "max_completion_tokens": max(400, int((target - count) * 2.6)),
+            "messages": [
+                {"role": "system", "content": instructions},
+                {"role": "user", "content": (
+                    "Continue the " + title + " radio segment with about " +
+                    str(max(100, target - count)) + " additional spoken words. " +
+                    "Do not repeat any existing sentences or claims. Use only the "
+                    "supplied headline records for current facts. If there are no "
+                    "more supported facts, use useful clearly identified general "
+                    "context or analysis, never invented specifics. Existing segment: " +
+                    segment + "\nAvailable records: " + json.dumps(relevant)
+                )}
+            ]
+        }))["choices"][0]["message"]["content"].strip()
+        if continuation:
+            segment += "\n\n" + continuation
+            count = len(segment.split())
+            print("Extended section", title, count, "words", flush=True)
+    if count < target * 0.55:
+        raise RuntimeError("Section remains too short: " + title + ". Aborting before narration.")
     generated.append((title, segment))
 script = "\n\n".join(text for _, text in generated)
 word_count = len(script.split())
