@@ -62,27 +62,61 @@ if len(headlines) < 20:
     raise RuntimeError("Too few recent headlines; previous broadcast remains available")
 (out / "sources.json").write_text(json.dumps(headlines, indent=2))
 
-instructions = """Write a polished 27-29 minute professional radio broadcast for a Rhode Island commuter.
-Use ONLY the provided headline records for current factual claims, and attribute the reporting.
-Headlines are not full articles: do not invent details, numbers, quotes, market prices or causes.
-Do not claim knowledge of personal portfolio holdings. Balance differing political perspectives.
-Opening headlines, then a 1-2 minute Daily Detour featuring an ORIGINAL lighthearted joke or
-practical reflection (no unverified historical/scientific claims), then Northern Rhode Island,
-Rhode Island, US, world, markets and science, then a warm closing.
-Natural spoken paragraphs, no markdown, no headings or URLs read aloud. Avoid repeated filler.
-Aim for 3,900-4,050 spoken words, at approximately 140 words per minute.
-Return only the full script."""
-reply = json.loads(ai("chat/completions", {
-    "model": "gpt-4.1-mini", "temperature": 0.5, "max_completion_tokens": 7500,
-    "messages": [{"role": "system", "content": instructions},
-                 {"role": "user", "content": "Broadcast date " + date + ". Headlines: " + json.dumps(headlines)}]
-}))
-script = reply["choices"][0]["message"]["content"].strip()
+instructions = """You are a careful, engaging American radio news writer for a northern Rhode Island commuter.
+Use only supplied dated headlines for current-event factual claims and attribute reporting.
+Headlines are not full articles. Never invent quotes, details, numbers, market prices,
+explanations, political motives, interviews or personal portfolio data.
+Avoid padding and repeated claims. Write polished, natural spoken paragraphs only.
+No headings, bullet points, markdown or spoken URLs. Balanced, thoughtful and professional.
+If evidence is thin, offer clearly labeled general context or useful non-news commentary
+without pretending to have verified facts. Do not make up new current events."""
+
+sections = [
+    ("Opening headlines", 260, "Lead with an engaging introduction and a fast overview of the strongest stories from all categories."),
+    ("Daily Detour", 230, "A creative, original lighthearted multi-line joke, everyday-life observation, or practical reflection. Keep it entertaining and distinct from the news."),
+    ("Northern Rhode Island", 550, "Local Burrillville, Pascoag, Woonsocket, Smithfield and surrounding-area headlines. Prioritize genuine local stories and avoid inventing community specifics."),
+    ("Rhode Island", 480, "Statewide Rhode Island news with helpful context, keeping local and statewide stories distinct."),
+    ("United States", 900, "National news and political developments. Attribute contested positions and explain multiple viewpoints fairly."),
+    ("World", 680, "International headlines and conflicts. Avoid asserting developments beyond headline evidence."),
+    ("Business and markets", 530, "Business, economy, stocks and IPOs. Do not invent market quotes, personal holdings, returns or price movements."),
+    ("Science and technology", 270, "Science and technology headlines, with thoughtful context and clear uncertainty."),
+    ("Closing", 100, "A warm and memorable sign-off that briefly looks ahead without promising specific news.")
+]
+generated = []
+for title, target, guidance in sections:
+    relevant = headlines if title in ("Opening headlines", "Closing") else [
+        h for h in headlines if h["category"] == {
+            "Northern Rhode Island": "Northern Rhode Island",
+            "Rhode Island": "Rhode Island",
+            "United States": "National",
+            "World": "World",
+            "Business and markets": "Markets",
+            "Science and technology": "Science"
+        }.get(title, "")]
+    if title == "Daily Detour":
+        relevant = []
+    prompt = ("Broadcast date " + date + ". Write ONLY the " + title +
+              " segment, about " + str(target) + " words (within 15 percent). " +
+              guidance + " Earlier segment context: " +
+              " | ".join(x[0] for x in generated[-2:]) +
+              ". Available headline records: " + json.dumps(relevant))
+    response = json.loads(ai("chat/completions", {
+        "model": "gpt-4.1-mini", "temperature": 0.45, "max_completion_tokens": max(700, int(target * 2.2)),
+        "messages": [{"role": "system", "content": instructions},
+                     {"role": "user", "content": prompt}]
+    }))
+    segment = response["choices"][0]["message"]["content"].strip()
+    count = len(segment.split())
+    print("Section", title, count, "words", flush=True)
+    if count < target * 0.65:
+        raise RuntimeError("Section too short: " + title + ". Aborting before narration.")
+    generated.append((title, segment))
+script = "\n\n".join(text for _, text in generated)
 word_count = len(script.split())
-print("Script words", word_count, flush=True)
+print("Total script words", word_count, flush=True)
 (out / "script.txt").write_text(script)
-if not 3000 <= word_count <= 4800:
-    raise RuntimeError("Script outside safe length bounds")
+if not 3200 <= word_count <= 4700:
+    raise RuntimeError("Script outside safe length bounds; no narration or publish")
 
 chunks = []
 current = ""
