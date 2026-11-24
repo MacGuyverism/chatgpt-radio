@@ -60,6 +60,46 @@ for category, query in topics.items():
         print(category, count, flush=True)
     except Exception as exc:
         print("Feed failed", category, type(exc).__name__, str(exc), flush=True)
+# Independent publisher feeds when Google News is unavailable or sparse.
+fallbacks = {
+    "Northern Rhode Island": ["https://www.valleybreeze.com/search/?f=rss&t=article"],
+    "Rhode Island": ["https://rhodeislandcurrent.com/feed/", "https://www.wpri.com/feed/"],
+    "National": ["https://feeds.npr.org/1003/rss.xml", "https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml"],
+    "World": ["https://feeds.bbci.co.uk/news/world/rss.xml", "https://feeds.npr.org/1004/rss.xml"],
+    "Markets": ["https://feeds.bbci.co.uk/news/business/rss.xml", "https://feeds.npr.org/1006/rss.xml"],
+    "Science": ["https://feeds.bbci.co.uk/news/science_and_environment/rss.xml", "https://feeds.npr.org/1007/rss.xml"]
+}
+for category, urls in fallbacks.items():
+    count = sum(h["category"] == category for h in headlines)
+    if count >= 6:
+        continue
+    for url in urls:
+        try:
+            root = ET.fromstring(http(url, headers={"User-Agent":"ChatGPT-Radio/1.0", "Accept":"application/rss+xml, application/xml, text/xml"}, timeout=20))
+            for item in root.findall("./channel/item"):
+                title, link, stamp = item.findtext("title"), item.findtext("link"), item.findtext("pubDate")
+                if not title or not link or not stamp:
+                    continue
+                try:
+                    age = (now - email.utils.parsedate_to_datetime(stamp).astimezone(dt.timezone.utc)).total_seconds()
+                except (ValueError, TypeError):
+                    continue
+                if not -3600 <= age <= 172800:
+                    continue
+                if any(h["url"] == link or h["title"] == title[:220] for h in headlines):
+                    continue
+                headlines.append({"category":category,"title":title[:220],
+                    "source":root.findtext("./channel/title") or urllib.parse.urlparse(url).netloc,
+                    "date":stamp,"url":link})
+                count += 1
+                if count >= 12:
+                    break
+            print("Fallback",category,url,count,flush=True)
+        except Exception as exc:
+            print("Fallback failed",category,url,str(exc),flush=True)
+        if count >= 6:
+            break
+(out / "sources.json").write_text(json.dumps(headlines, indent=2))
 if len(headlines) < 20:
     raise RuntimeError("Too few recent headlines; previous broadcast remains available")
 (out / "sources.json").write_text(json.dumps(headlines, indent=2))
