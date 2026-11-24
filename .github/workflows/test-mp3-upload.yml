@@ -1,0 +1,57 @@
+name: Test MP3 upload
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-mp3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Generate 64 kbps mono test MP3
+        run: |
+          ffmpeg -hide_banner -loglevel error -f lavfi -i "sine=frequency=660:duration=3" -ac 1 -ar 24000 -codec:a libmp3lame -b:a 64k -y test-radio.mp3
+          ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 test-radio.mp3
+      - name: Upload test MP3 and verify playback URL
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+          import urllib.error
+          from pathlib import Path
+
+          base = os.environ["SUPABASE_URL"].rstrip("/")
+          key = os.environ["SUPABASE_SECRET_KEY"]
+          path = "tests/connection-test.mp3"
+          endpoint = f"{base}/storage/v1/object/chatgpt-radio/{path}"
+          payload = Path("test-radio.mp3").read_bytes()
+          headers = {
+              "apikey": key,
+              "Authorization": "Bearer " + key,
+              "Content-Type": "audio/mpeg",
+              "x-upsert": "true",
+              "cache-control": "60",
+          }
+          request = urllib.request.Request(endpoint, data=payload, headers=headers, method="POST")
+          try:
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  print("Upload HTTP status:", response.status)
+              public_url = f"{base}/storage/v1/object/public/chatgpt-radio/{path}"
+              with urllib.request.urlopen(public_url, timeout=30) as response:
+                  body = response.read()
+                  assert response.status == 200
+                  assert response.headers.get("Content-Type", "").startswith("audio/mpeg")
+                  assert body == payload, "Downloaded bytes did not match uploaded MP3"
+              print("SUCCESS: MP3 uploaded and verified.")
+              print("Test audio:", public_url)
+          except urllib.error.HTTPError as exc:
+              print("Supabase HTTP error:", exc.code)
+              raise SystemExit(1)
+          PY
