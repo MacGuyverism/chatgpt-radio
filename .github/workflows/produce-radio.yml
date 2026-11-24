@@ -1,6 +1,10 @@
 name: Produce ChatGPT Radio broadcast
 on:
   workflow_dispatch:
+  schedule:
+    # 06:10 Eastern: 10:10 UTC during EDT, 11:10 UTC during EST.
+    - cron: '10 10 * * *'
+    - cron: '10 11 * * *'
 permissions:
   contents: read
 concurrency:
@@ -8,22 +12,53 @@ concurrency:
   cancel-in-progress: false
 jobs:
   broadcast:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 55
     steps:
-      - uses: actions/checkout@v4
-      - name: Install FFmpeg
+      - name: Check Eastern production window
+        id: window
+        env:
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y ffmpeg
+          python3 - <<'PY'
+          import datetime
+          import os
+          from zoneinfo import ZoneInfo
+          local = datetime.datetime.now(ZoneInfo("America/New_York"))
+          scheduled = os.environ["EVENT_NAME"] == "schedule"
+          # Two UTC cron entries handle EST/EDT. Only one falls within 06:00-06:59 local.
+          allowed = not scheduled or local.hour == 6
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write("run=" + str(allowed).lower() + "\n")
+          print("Local Eastern time:", local.isoformat())
+          print("Proceed with production:", allowed)
+          PY
+      - uses: actions/checkout@v4
+        if: steps.window.outputs.run == 'true'
+      - name: Install FFmpeg with bounded retries
+        if: steps.window.outputs.run == 'true'
+        timeout-minutes: 6
+        run: |
+          if command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null; then
+            echo "FFmpeg already installed"
+          else
+            # Try cached package lists first to avoid slow repository refreshes.
+            sudo env DEBIAN_FRONTEND=noninteractive timeout 180 apt-get install -y -qq ffmpeg || {
+              sudo timeout 90 apt-get update -qq -o Acquire::Retries=1
+              sudo env DEBIAN_FRONTEND=noninteractive timeout 180 apt-get install -y -qq ffmpeg
+            }
+          fi
+          ffmpeg -version | head -n 1
+          ffprobe -version | head -n 1
       - name: Produce broadcast
+        if: steps.window.outputs.run == 'true'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
         run: python3 radio_production.py
       - name: Preserve completed MP3 for recovery if publishing fails
-        if: failure()
+        if: failure() && steps.window.outputs.run == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: recovered-radio-mp3
@@ -32,7 +67,7 @@ jobs:
           retention-days: 7
           compression-level: 0
       - name: Save debugging files if failed
-        if: failure()
+        if: failure() && steps.window.outputs.run == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: radio-diagnostics
