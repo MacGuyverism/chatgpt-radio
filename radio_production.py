@@ -233,11 +233,24 @@ def storage(path, data=None, content_type="application/json", method="GET"):
     return http(base + "/storage/v1/object/chatgpt-radio/" + path, data, h, method)
 
 previous = None
+# Supabase Storage may report a missing object as HTTP 400 (not just 404).
+# Inspect the error body rather than treating every 400 as a missing file.
 try:
     previous = json.loads(storage("latest.json"))
 except urllib.error.HTTPError as exc:
-    if exc.code != 404:
-        raise
+    error_body = exc.read().decode("utf-8", errors="replace")
+    try:
+        error_info = json.loads(error_body)
+    except ValueError:
+        error_info = {}
+    error_text = " ".join(str(error_info.get(k, "")) for k in ("error", "message", "error_description")).lower()
+    if exc.code == 404 or (exc.code == 400 and any(
+        marker in error_text for marker in ("not found", "not_found", "no such object", "object not found")
+    )):
+        print("No previous latest.json found; publishing first episode", flush=True)
+    else:
+        raise RuntimeError("Supabase metadata read failed: HTTP " + str(exc.code) +
+                           " " + error_body[:400]) from exc
 path = "episodes/" + final.name
 payload = final.read_bytes()
 storage(path, payload, "audio/mpeg", "POST")
