@@ -1,4 +1,6 @@
 import subprocess
+import json
+from mutagen.id3 import ID3, CHAP, CTOC, TIT2, CTOCFlags
 import re
 import zipfile
 from pathlib import Path
@@ -64,7 +66,9 @@ def chunks(text):
 
 def render_episode(generated,out,final,ai):
     parts=[]
+    boundaries=[]
     for i,(title,text) in enumerate(generated):
+        boundaries.append((title, len(parts)))
         name,voice,style=presenters[title]
         speech=[]
         for j,chunk in enumerate(chunks(text)):
@@ -102,4 +106,23 @@ def render_episode(generated,out,final,ai):
         raise RuntimeError("Episode outside safe tempo adjustment range")
     ff("-i",master,"-af",f"atempo={tempo:.6f},loudnorm=I=-16:TP=-1.5:LRA=7",
         "-ar",24000,"-ac",1,"-c:a","libmp3lame","-b:a","64k",final)
-    return duration(final)
+    actual = duration(final)
+    offsets = [0.0]
+    for part in parts:
+        offsets.append(offsets[-1] + duration(part))
+    chapters = []
+    tags = ID3(final)
+    tags.delall('CHAP')
+    tags.delall('CTOC')
+    for i, (title, index) in enumerate(boundaries):
+        start = round(offsets[index] / tempo * 1000)
+        end = round(offsets[boundaries[i+1][1]] / tempo * 1000) if i+1 < len(boundaries) else round(actual * 1000)
+        chapter_id = f'segment-{i+1}'
+        if not 0 <= start < end <= round(actual * 1000):
+            raise RuntimeError('Invalid chapter timing')
+        tags.add(CHAP(element_id=chapter_id, start_time=start, end_time=end, start_offset=0xffffffff, end_offset=0xffffffff, sub_frames=[TIT2(encoding=3,text=title)]))
+        chapters.append({'id':chapter_id,'title':title,'reporter':presenters[title][0],'start_ms':start,'end_ms':end})
+    tags.add(CTOC(element_id='toc', flags=CTOCFlags.TOP_LEVEL | CTOCFlags.ORDERED, child_element_ids=[c['id'] for c in chapters], sub_frames=[TIT2(encoding=3,text='Segments')]))
+    tags.save(final, v2_version=3)
+    final.with_suffix('.json').write_text(json.dumps({'schema_version':1,'duration_ms':round(actual*1000),'chapters':chapters},indent=2))
+    return actual
