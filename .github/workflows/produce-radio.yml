@@ -52,9 +52,13 @@ jobs:
           fi
           ffmpeg -version | head -n 1
           ffprobe -version | head -n 1
+      - name: Install article and chapter dependencies
+        if: steps.window.outputs.run == 'true'
+        run: python3 -m pip install --disable-pip-version-check 'mutagen==1.47.0' 'trafilatura==2.0.0'
       - name: Produce broadcast
         if: steps.window.outputs.run == 'true'
         env:
+          RADIO_EVENT: ${{ github.event_name }}
           RADIO_TEST_ONLY: ${{ github.ref_name != 'main' && '1' || '0' }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -65,7 +69,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: radio-test-broadcast
-          path: build/chatgpt-radio-*.mp3
+          path: |
+            build/chatgpt-radio-*.mp3
+            build/chatgpt-radio-*.json
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
