@@ -2,9 +2,9 @@ name: Produce ChatGPT Radio broadcast
 on:
   workflow_dispatch:
   schedule:
-    # 06:10 Eastern: 10:10 UTC during EDT, 11:10 UTC during EST.
-    - cron: '10 10 * * *'
-    - cron: '10 11 * * *'
+    # 06:15 Eastern: 10:15 UTC during EDT, 11:15 UTC during EST.
+    - cron: '15 10 * * *'
+    - cron: '15 11 * * *'
 permissions:
   contents: read
 concurrency:
@@ -19,6 +19,7 @@ jobs:
         id: window
         env:
           EVENT_NAME: ${{ github.event_name }}
+          EVENT_CRON: ${{ github.event.schedule }}
         run: |
           python3 - <<'PY'
           import datetime
@@ -26,8 +27,9 @@ jobs:
           from zoneinfo import ZoneInfo
           local = datetime.datetime.now(ZoneInfo("America/New_York"))
           scheduled = os.environ["EVENT_NAME"] == "schedule"
-          # Two UTC cron entries handle EST/EDT. Only one falls within 06:00-06:59 local.
-          allowed = not scheduled or local.hour == 6
+          # Select the DST-appropriate cron, even if GitHub starts it late.
+          expected = '15 10 * * *' if local.dst() else '15 11 * * *'
+          allowed = not scheduled or os.environ.get('EVENT_CRON') == expected
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write("run=" + str(allowed).lower() + "\n")
           print("Local Eastern time:", local.isoformat())
