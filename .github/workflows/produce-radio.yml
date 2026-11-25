@@ -53,10 +53,20 @@ jobs:
       - name: Produce broadcast
         if: steps.window.outputs.run == 'true'
         env:
+          RADIO_TEST_ONLY: ${{ github.ref_name != 'main' && '1' || '0' }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
         run: python3 radio_production.py
+      - name: Save test broadcast
+        if: success() && steps.window.outputs.run == 'true' && github.ref_name != 'main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: radio-test-broadcast
+          path: build/chatgpt-radio-*.mp3
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
       - name: Preserve completed MP3 for recovery if publishing fails
         if: failure() && steps.window.outputs.run == 'true'
         uses: actions/upload-artifact@v4
