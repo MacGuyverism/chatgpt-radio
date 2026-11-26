@@ -98,6 +98,10 @@ private fun Briefsona() {
     var playing by remember { mutableStateOf(false) }
     var liveId by remember { mutableStateOf<String?>(null) }
     var today by remember { mutableStateOf(LocalDate.now()) }
+    val stations = remember(context) { StationDatabase.get(context).observe() }.collectAsState(emptyList())
+    val morning = remember(stations.value) {
+        stations.value.firstOrNull { it.id == StationProfile.morningCommute.id }?.decode() ?: StationProfile.morningCommute
+    }
     val visible = items.filter { (it.remote || it.local != null) && it.date >= today.minusDays(6).toString() }
     val active = items.firstOrNull { it.id == liveId }
     val selected = visible.firstOrNull { it.id == prefs[Prefs.selected] }
@@ -183,11 +187,11 @@ private fun Briefsona() {
                 val scroll = rememberScrollState()
                 Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(screen.uppercase(), color = accent, fontWeight = FontWeight.Bold,
+                    if (screen != "Stations") Text(screen.uppercase(), modifier = Modifier.align(Alignment.CenterHorizontally), color = accent, fontWeight = FontWeight.Bold,
                         letterSpacing = 3.sp, fontSize = 24.sp)
                     when (screen) {
                         "Radio" -> Radio(
-                            today, visible, chosen, segmentList, displayedPosition, playing, landscape,
+                            morning, today, visible, chosen, segmentList, displayedPosition, playing, landscape,
                             controller != null, prefs[Prefs.speed] ?: 1f,
                             onSelect = ::select,
                             onPlay = {
@@ -213,10 +217,14 @@ private fun Briefsona() {
                             }
                         )
                         "Stations" -> screenState.SaveableStateProvider("station-pages") {
-                            StationPages(scroll) {
+                            StationPages(scroll, stations.value, morning, visible.isNotEmpty(), {
+                                val episode = active ?: chosen ?: visible.firstOrNull()
+                                if (episode != null) select(episode)
+                                screen = "Radio"
+                            }) {
                                 Stations(status, visible, prefs, endpoint != null, {
                                     Retrieval.request(context, wifi, "")
-                                }, { screen = "Radio" })
+                                })
                             }
                         }
                         else -> Settings(prefs, items, save, controller)
@@ -239,18 +247,18 @@ private fun Panel(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun StationSelector() {
+private fun StationSelector(station: StationProfile) {
     var expanded by remember { mutableStateOf(false) }
     Panel {
         Box {
             Row(Modifier.fillMaxWidth().clickable { expanded = true }, verticalAlignment = Alignment.CenterVertically) {
-                Text("◉", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp)
-                Text("Morning Commute", Modifier.weight(1f).padding(horizontal = 12.dp),
+                Text(station.icon, color = MaterialTheme.colorScheme.primary, fontSize = 20.sp)
+                Text(station.name, Modifier.weight(1f).padding(horizontal = 12.dp),
                     style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text("⌄")
             }
             DropdownMenu(expanded, { expanded = false }) {
-                DropdownMenuItem(text = { Text("Morning Commute") }, onClick = { expanded = false })
+                DropdownMenuItem(text = { Text(station.name) }, onClick = { expanded = false })
             }
         }
     }
@@ -258,7 +266,7 @@ private fun StationSelector() {
 
 @Composable
 private fun Radio(
-    today: LocalDate, items: List<Episode>, episode: Episode?, segments: List<Chapter>, position: Long,
+    station: StationProfile, today: LocalDate, items: List<Episode>, episode: Episode?, segments: List<Chapter>, position: Long,
     playing: Boolean, landscape: Boolean, connected: Boolean, speed: Float, onSelect: (Episode) -> Unit,
     onPlay: () -> Unit, onSeek: (Long) -> Unit, onSpeed: () -> Unit
 ) {
@@ -274,7 +282,7 @@ private fun Radio(
     }
     var dayMenu by remember { mutableStateOf<List<Episode>>(emptyList()) }
     var all by rememberSaveable { mutableStateOf(false) }
-    StationSelector()
+    StationSelector(station)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         for (days in 6 downTo 0) {
             val date = today.minusDays(days.toLong())
@@ -433,7 +441,7 @@ private fun bluetoothConnected(): Boolean {
 
 @Composable
 private fun Stations(status: String, episodes: List<Episode>, prefs: Preferences, configured: Boolean,
-    retrieve: () -> Unit, openRadio: () -> Unit) {
+    retrieve: () -> Unit) {
     val json = remember(status) { runCatching { JSONObject(status) }.getOrNull() }
     val state = json?.optString("state")
     val release = json?.optString("release_at").orEmpty()
@@ -454,7 +462,6 @@ private fun Stations(status: String, episodes: List<Episode>, prefs: Preferences
     val production = json?.optString(if (idle) "next_production_at" else "production_at").orEmpty()
     val latest = episodes.firstOrNull()
     Panel {
-        TextButton(onClick = openRadio) { Text("◉  Morning Commute", style = MaterialTheme.typography.titleLarge) }
         Text("Daily · ${if (release.isBlank()) "7:00 AM Eastern" else localTime(release)}")
         HorizontalDivider()
         SettingValue("Production", summary, if (summary == "Ready") green else MaterialTheme.colorScheme.primary)

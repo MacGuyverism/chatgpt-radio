@@ -30,7 +30,7 @@ class StationProfileTest {
     @Test fun createPauseAndReopenStation() {
         val name = "Station ${UUID.randomUUID()}"
         compose.onNodeWithText("Stations").performClick()
-        compose.onNodeWithText("+ Add Station").performClick()
+        compose.onNodeWithContentDescription("Add station").performClick()
         compose.onNodeWithText("Station name").performTextInput(name)
         compose.onNodeWithText("Scheduled").performClick()
         compose.onNodeWithText("Pause schedule").performScrollTo().performClick()
@@ -49,8 +49,8 @@ class StationProfileTest {
         val context = compose.activity.applicationContext
         val dao = database.stations()
         val defaults = StationProfile(name = "Segment settings")
-        val first = StationSegment(name = "World", weight = 3, cue = "bundled:international")
-        val second = StationSegment(name = "Business", weight = 2, cue = "bundled:finance")
+        val first = StationSegment(name = "World", weight = 1.5, cue = "bundled:international")
+        val second = StationSegment(name = "Business", weight = 2.0, cue = "bundled:finance")
         val profile = defaults.copy(segments = listOf(
             defaults.segments.first(), second, first, defaults.segments.last()
         ), random = true)
@@ -64,6 +64,18 @@ class StationProfileTest {
         bundledCues.forEach { cue ->
             context.assets.openFd("station-cues/$cue.mp3").use { assertTrue(it.length > 0) }
         }
+    }
+
+    @Test fun lineupSavePreservesProfileFieldsAndQueuesBackup() = runBlocking {
+        val dao = database.stations()
+        val original = StationProfile(name = "Traffic", instructions = "Cover local roads", icon = "🚗")
+        dao.save(original)
+        val edited = original.copy(name = "Unsaved rename", random = true)
+        dao.saveLineup(edited)
+        val record = dao.pending().single()
+        assertEquals(original.copy(random = true), record.decode())
+        assertEquals(2L, record.revision)
+        assertEquals("Backup pending", record.backup)
     }
 
     @Test fun importingAudioPreservesClipBytes() = runBlocking {

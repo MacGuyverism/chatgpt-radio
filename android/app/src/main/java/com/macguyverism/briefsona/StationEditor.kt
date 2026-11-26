@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
@@ -19,13 +22,14 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 @Composable
-internal fun StationPages(scroll: ScrollState, content: @Composable () -> Unit) {
+internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, morning: StationProfile,
+    playable: Boolean, loadStation: () -> Unit, content: @Composable () -> Unit) {
     val context = LocalContext.current
     val dao = remember(context) { StationDatabase.get(context) }
-    val records by dao.observe().collectAsState(emptyList())
     val scope = rememberCoroutineScope()
     var draftJson by rememberSaveable { mutableStateOf<String?>(null) }
-    var editingSegments by rememberSaveable { mutableStateOf(false) }
+    var lineupJson by rememberSaveable { mutableStateOf<String?>(null) }
+    val editingSegments = lineupJson != null
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
     val draft = remember(draftJson) { draftJson?.let { StationProfile.from(JSONObject(it)) } }
@@ -38,7 +42,7 @@ internal fun StationPages(scroll: ScrollState, content: @Composable () -> Unit) 
 
     fun goBack() {
         if (editingSegments) {
-            editingSegments = false
+            lineupJson = null
         } else {
             draftJson = null
             error = null
@@ -66,21 +70,30 @@ internal fun StationPages(scroll: ScrollState, content: @Composable () -> Unit) 
 
     BackHandler(enabled = draft != null) { if (!saving) goBack() }
     if (draft == null) {
-        Button(onClick = { edit(StationProfile()) }, modifier = Modifier.fillMaxWidth()) {
-            Text("+ Add Station")
+        Box(Modifier.fillMaxWidth()) {
+            Text("STATIONS", Modifier.align(Alignment.Center), style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.primary)
+            IconButton(onClick = { edit(StationProfile()) }, modifier = Modifier.align(Alignment.CenterEnd)
+                .semantics { contentDescription = "Add station" }) { Text("+") }
         }
-        content()
-        records.forEach { record ->
-            key(record.id) {
-                val profile = remember(record.profile) { record.decode() }
-                OutlinedButton(onClick = { edit(profile) }, modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.fillMaxWidth()) {
-                        Text(profile.name, style = MaterialTheme.typography.titleMedium)
-                        Text("${profile.mode.label} · ${profile.minutes} min · ${record.backup}")
+        val profiles = listOf(morning) + records.filter { it.id != morning.id }.map { it.decode() }
+        profiles.forEach { profile ->
+            val loaded = profile.id == morning.id
+            OutlinedCard(onClick = { edit(profile) }, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(profile.icon)
+                    Text(profile.name, style = MaterialTheme.typography.titleMedium,
+                        color = if (loaded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                    Text("${profile.mode.label} · ${profile.minutes} min · ${profile.segments.size} segments")
+                    records.firstOrNull { it.id == profile.id }?.let { Text(it.backup) }
+                    if (loaded) {
+                        Text("Loaded in Radio")
+                        OutlinedButton(onClick = loadStation, enabled = playable) { Text("Load station") }
                     }
                 }
             }
         }
+        content()
         return
     }
 
@@ -90,12 +103,40 @@ internal fun StationPages(scroll: ScrollState, content: @Composable () -> Unit) 
     Text(if (editingSegments) "Segments" else "Station Profile", style = MaterialTheme.typography.headlineSmall)
     error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     if (editingSegments) {
-        SegmentEditor(draft, ::edit)
+        val lineup = remember(lineupJson) { StationProfile.from(JSONObject(requireNotNull(lineupJson))) }
+        SegmentEditor(lineup, edit = {
+            if (!saving) {
+                lineupJson = it.json().toString()
+                error = null
+            }
+        }, saving = saving, saveLineup = {
+            saving = true
+            scope.launch {
+                try {
+                    dao.saveLineup(lineup)
+                    StationBackup.request(context)
+                    edit(draft.copy(random = lineup.random, segments = lineup.segments))
+                    lineupJson = null
+                } catch (failure: CancellationException) {
+                    throw failure
+                } catch (_: IllegalArgumentException) {
+                    error = lineup.validationError() ?: "Save the station duration before saving this lineup."
+                } catch (_: Exception) {
+                    error = "Could not save the lineup. Try again."
+                } finally {
+                    saving = false
+                }
+            }
+        })
         return
     }
 
     OutlinedTextField(draft.name, { edit(draft.copy(name = it)) }, label = { Text("Station name") },
         singleLine = true, modifier = Modifier.fillMaxWidth(), enabled = !saving)
+    OutlinedTextField(draft.icon, { edit(draft.copy(icon = it)) }, label = { Text("Station icon") },
+        singleLine = true, enabled = !saving)
+    OutlinedTextField(draft.instructions, { edit(draft.copy(instructions = it)) },
+        label = { Text("Station-wide broadcast instructions") }, modifier = Modifier.fillMaxWidth(), enabled = !saving)
     OutlinedTextField(draft.minutes.takeIf { it > 0 }?.toString().orEmpty(), {
         edit(draft.copy(minutes = it.toIntOrNull() ?: 0))
     }, label = { Text("Target duration (minutes)") }, singleLine = true,
@@ -117,19 +158,22 @@ internal fun StationPages(scroll: ScrollState, content: @Composable () -> Unit) 
             Text(if (draft.mode == StationMode.PAUSED) "Resume schedule" else "Pause schedule")
         }
     }
-    OutlinedButton(onClick = { editingSegments = true }, modifier = Modifier.fillMaxWidth(), enabled = !saving) {
+    OutlinedButton(onClick = { lineupJson = draft.json().toString() }, modifier = Modifier.fillMaxWidth(), enabled = !saving) {
         Text("Segments · ${draft.segments.size}")
     }
     Button(onClick = { save(draft) }, modifier = Modifier.fillMaxWidth(), enabled = !saving) {
         Text("Save station")
     }
-    if (records.any { it.id == draft.id }) {
-        OutlinedButton(onClick = { save(draft.duplicate(), copy = true) }, enabled = !saving) { Text("Copy station") }
+    if (draft.id == morning.id || records.any { it.id == draft.id }) {
+        OutlinedButton(onClick = { save(draft.duplicate(), copy = true) }, enabled = !saving) { Text("Create a copy") }
+    }
+    listOf("Reporter library", "Produce broadcast now", "Delete station").forEach { label ->
+        OutlinedButton(onClick = {}, enabled = false) { Text(label) }
     }
 }
 
 @Composable
-private fun SegmentEditor(profile: StationProfile, edit: (StationProfile) -> Unit) {
+private fun SegmentEditor(profile: StationProfile, edit: (StationProfile) -> Unit, saving: Boolean, saveLineup: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val latestProfile by rememberUpdatedState(profile)
@@ -200,10 +244,13 @@ private fun SegmentEditor(profile: StationProfile, edit: (StationProfile) -> Uni
                     }, style = MaterialTheme.typography.titleMedium)
                     OutlinedTextField(segment.name, { update(segment.copy(name = it)) },
                         label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(segment.weight.takeIf { it > 0 }?.toString().orEmpty(), {
-                        update(segment.copy(weight = it.toIntOrNull() ?: 0))
-                    }, label = { Text("Duration weight") }, singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    var weightText by rememberSaveable(segment.id) { mutableStateOf(segment.weight.toString()) }
+                    OutlinedTextField(weightText, {
+                        weightText = it
+                        val parsed = it.replace(',', '.').toDoubleOrNull()
+                        update(segment.copy(weight = parsed?.takeIf { value -> value.isFinite() } ?: 0.0))
+                    }, label = { Text("Relative airtime (×)") }, singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.fillMaxWidth())
                     if (custom) {
                         Row {
@@ -271,6 +318,7 @@ private fun SegmentEditor(profile: StationProfile, edit: (StationProfile) -> Uni
             add(lastIndex, StationSegment(name = ""))
         }))
     }, enabled = profile.segments.size - 2 < profile.minutes / 3) { Text("+ Add Segment") }
+    Button(onClick = saveLineup, enabled = !saving && !importing) { Text("Save lineup") }
 }
 
 private class CuePreview {

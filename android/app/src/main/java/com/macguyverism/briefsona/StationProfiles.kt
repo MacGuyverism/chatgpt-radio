@@ -19,7 +19,7 @@ internal enum class StationMode(val label: String) {
 internal data class StationSegment(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
-    val weight: Int = 1,
+    val weight: Double = 1.0,
     val cue: String? = null
 )
 
@@ -29,7 +29,9 @@ internal data class StationProfile(
     val minutes: Int = 30,
     val mode: StationMode = StationMode.MANUAL,
     val random: Boolean = false,
-    val segments: List<StationSegment> = listOf(StationSegment(name = "Opening"), StationSegment(name = "Closing"))
+    val segments: List<StationSegment> = listOf(StationSegment(name = "Opening"), StationSegment(name = "Closing")),
+    val icon: String = "◉",
+    val instructions: String = ""
 ) {
     fun duplicate() = copy(
         id = UUID.randomUUID().toString(), name = "$name (copy)",
@@ -41,11 +43,12 @@ internal data class StationProfile(
         minutes !in 5..60 -> "Enter a duration from 5 to 60 minutes."
         segments.size - 2 > minutes / 3 -> "This duration allows up to ${minutes / 3} custom segments."
         segments.any { it.name.isBlank() } -> "Give every segment a name."
-        segments.any { it.weight <= 0 } -> "Give every segment a positive whole-number weight."
+        segments.any { !it.weight.isFinite() || it.weight <= 0 } -> "Give every segment a positive relative airtime."
         else -> null
     }
 
     fun json() = JSONObject().put("id", id).put("name", name).put("minutes", minutes)
+        .put("icon", icon).put("instructions", instructions)
         .put("mode", mode.name).put("random", random).put("segments", JSONArray().apply {
             segments.forEachIndexed { index, segment ->
                 put(JSONObject().put("id", segment.id).put("name", segment.name)
@@ -59,6 +62,11 @@ internal data class StationProfile(
         })
 
     companion object {
+        val morningCommute = StationProfile(
+            id = UUID.nameUUIDFromBytes("morning-commute".toByteArray()).toString(),
+            name = "Morning Commute", mode = StationMode.SCHEDULED
+        )
+
         fun from(json: JSONObject): StationProfile {
             val segments = json.getJSONArray("segments")
             return StationProfile(json.getString("id"), json.getString("name"), json.getInt("minutes"),
@@ -66,8 +74,8 @@ internal data class StationProfile(
                 List(segments.length()) { index ->
                     val segment = segments.getJSONObject(index)
                     StationSegment(segment.getString("id"), segment.getString("name"),
-                        segment.getInt("weight"), segment.optString("cue").takeUnless { segment.isNull("cue") })
-                })
+                        segment.getDouble("weight"), segment.optString("cue").takeUnless { segment.isNull("cue") })
+                }, json.optString("icon", "◉"), json.optString("instructions"))
         }
     }
 }
@@ -91,6 +99,9 @@ internal abstract class StationDao {
     @Query("SELECT * FROM StationRecord WHERE backup != 'Backed up'")
     abstract suspend fun pending(): List<StationRecord>
 
+    @Query("SELECT * FROM StationRecord WHERE id = :id")
+    abstract suspend fun find(id: String): StationRecord?
+
     @Query("SELECT revision FROM StationRecord WHERE id = :id")
     abstract suspend fun revision(id: String): Long?
 
@@ -99,6 +110,12 @@ internal abstract class StationDao {
 
     @Query("UPDATE StationRecord SET backup = :status WHERE id = :id AND revision = :revision")
     abstract suspend fun mark(id: String, revision: Long, status: String)
+
+    @Transaction
+    open suspend fun saveLineup(draft: StationProfile) {
+        val saved = find(draft.id)?.decode() ?: draft
+        save(saved.copy(segments = draft.segments, random = draft.random))
+    }
 
     @Transaction
     open suspend fun save(profile: StationProfile) {
