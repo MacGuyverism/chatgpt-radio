@@ -1,5 +1,5 @@
 # Briefsona design specification
-Working name, subject to change before retail. Tagline: The ultimate news experience. Developer: MacGuyverism. Approved nameless launcher icon; asset packaging pending. Proposed package com.macguyverism.briefsona.
+Working name, subject to change before retail. Tagline: The ultimate news experience. Developer: MacGuyverism. Approved nameless launcher icon packaged from Icon.png. Proposed package com.macguyverism.briefsona.
 ## v0.0.1
 Kotlin, Compose, Media3 ExoPlayer/MediaSessionService, WorkManager, Room, DataStore, Android 8+, portrait and landscape. Existing Python production engine, GitHub Actions, Supabase. MP3 64 kbps mono, ID3 CHAP/CTOC and separate JSON chapter metadata. Chapter timings include cues, overlaps and tempo adjustments.
 Radio dashboard: automotive styling, station dropdown, rolling seven weekday/date buttons, edition, Bluetooth indicator, segment/reporter, waveform/progress, elapsed/total, previous/next chapter, 15s rewind, 30s forward, play, horizontal presets (two full and partial third), expandable All Segments, speed, offline status. No gear or refresh on dashboard. Bottom navigation Stations / Radio (default) / Settings.
@@ -20,6 +20,6 @@ v0.5.0 target: proprietary .bsa encrypted MP3 container, authenticated seekable 
 ## Testing and implementation status
 Development and the Android debug build are authorized on feature/article-chapters-reliability. The backend now extracts publisher reporting, groups similar stories, reserves each scheduled production date, stages until release and validates both chapter formats. Android reads the seven-day archive with a legacy latest.json fallback.
 
-The approved launcher artwork features a microphone, headphones, amber globe and newspaper. Package the supplied original when its file is accessible. Radio, Stations and Settings follow the supplied references. Illustrative dates, stations, segments and status values in the references are populated from the available broadcasts.
+The approved launcher artwork features a microphone, headphones, amber globe and newspaper. The Android adaptive launcher resource uses the original Icon.png from main commit 0694700. Radio, Stations and Settings follow the supplied references. Illustrative dates, stations, segments and status values in the references are populated from the available broadcasts.
 
 A feature-branch test broadcast requires editorial review before promotion. Verify downloads, offline and background playback, Bluetooth, lock screen controls, resume, chapter navigation, retention, all 18 themes and landscape on Kayla and Jade.
