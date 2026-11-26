@@ -18,4 +18,8 @@ v0.5.0 target: proprietary .bsa encrypted MP3 container, authenticated seekable 
 ## Roadmap
 0.0.1 functional player; 0.0.2 station profiles/segments; 0.0.3 reporter personalities/Markdown; 0.0.4 scheduling/manual production; 0.0.5 accounts/providers; 0.1 alpha; 0.5 commercial beta; 1.0 retail. Later RSS/ZIP feature placement TBD.
 ## Testing and implementation status
-Development branch article-chapters-reliability contains untested article extraction, exact deduplication, scheduled duplicate guard and chapter code. Expanded feeds, Google News intermediary resolution, similar-story clustering, anti-fluff prompt/length changes, seven-day cloud retention and staged release still require implementation/testing. Do not merge untested changes into live production. No Android build authorized yet. After build remind user to test Kayla and Jade: downloads, offline, Bluetooth, background, lock screen, resume, chapters, cleanup, all 18 themes, landscape.
+Development and the Android debug build are authorized on feature/article-chapters-reliability. The backend now extracts publisher reporting, groups similar stories, reserves each scheduled production date, stages until release and validates both chapter formats. Android reads the seven-day archive with a legacy latest.json fallback.
+
+The approved launcher artwork features a microphone, headphones, amber globe and newspaper. Package the supplied original when its file is accessible. Radio, Stations and Settings follow the supplied references. Illustrative dates, stations, segments and status values in the references are populated from the available broadcasts.
+
+A feature-branch test broadcast requires editorial review before promotion. Verify downloads, offline and background playback, Bluetooth, lock screen controls, resume, chapter navigation, retention, all 18 themes and landscape on Kayla and Jade.
