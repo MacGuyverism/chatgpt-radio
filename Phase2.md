@@ -29,11 +29,27 @@ Phase 2 lets users create and edit stations, configure their segment lineup, and
 - **Schedule** offers **Automatic** and **Manual**. Automatic corresponds to the saved Scheduled mode and includes **Pause schedule** and **Resume schedule**. Saving a mode in Phase 2 records the preference without starting a production job.
 - Keep broadcast days, release time, and time zone controls disabled. Show a next broadcast or production start only when an actual schedule supplies it. Under Manual, keep **Produce broadcast now** and **Retry production** disabled. **Retrieve existing broadcast** remains available for a published edition.
 
+## Later releases
+
+- v0.0.3 covers reporter personalities and Markdown.
+- v0.0.4 covers broadcast days, release times, schedule execution, and **Produce Now**.
+- v0.0.5 covers visible accounts and providers.
+
 ## Saving and private backups
 
 Each **Save** button commits the changes made on that page. **Save segment** commits the segment fields, **Save sound bite** commits its assignment, **Save changes** on Segments commits the lineup, **Save schedule** commits the mode and pause state, and **Save station** commits the profile fields. A user can return directly to Stations after saving a child page. Saving another page later must preserve those committed edits.
 
 Save locally first, including when offline. Queue the latest committed station revision and its referenced imported audio for private Supabase backup under the installation’s anonymous identity. Show the backup state separately from broadcast production and download status.
+
+## Radio segment card
+
+Show horizontally scrollable tiles with the chapter number, start time, and title. Highlight the active chapter and show its details below the tiles. Tapping a tile seeks to that chapter. Use the actual chapter count in **All**.
+
+## Implementation and verification status
+
+- Remote feature commit [`01b2639`](https://github.com/MacGuyverism/chatgpt-radio/commit/01b2639) contains the initial v0.0.2 station editor and backup implementation. Android CI passed. Live backup verification still requires a configured test project. The seven-page redesign includes planned work beyond that commit.
+- The redesigned Radio segment card exists as a local, unbuilt edit. Local feature commit `372c58e` separately addresses premature reporter sign-offs and Bluetooth chapter metadata. The intended car display is **Briefsona / Morning Edition / current chapter title**. Physical receiver verification is pending.
+- The production workflow on `main` targets a **6:15 a.m. Eastern** start and a **7:00 a.m. Eastern** release. The November 26 edition ran manually, and the cause of the missed automatic run is unconfirmed. A read-only check was scheduled for November 27 at **7:30 a.m. Eastern**. Track this workflow separately from the future per-station scheduler.
 
 ## Acceptance checks
 
@@ -42,6 +58,7 @@ Save locally first, including when offline. Queue the latest committed station r
 - Reorder custom segments, switch to Random and back to Fixed, and verify the sequence and pinned endpoints. Shorten the target duration and verify that validation preserves the lineup.
 - Import and preview a sound bite, save its assignment, and verify it plays after restart. Confirm a failed replacement preserves the saved clip.
 - Save Manual, Scheduled, and Scheduled (paused) states offline. Verify the latest revision backs up after reconnecting and that these actions start no production jobs.
+- In Radio, scroll the chapter tiles and tap one. Verify playback seeks to the displayed start time, the active tile and details update, and **All** shows the actual chapter count.
 - Confirm that later-phase controls are visibly disabled and that the Stations page has a single create action.
 
 Development stays on the feature branch. Use `RADIO_TEST_ONLY=1` for development broadcasts. APK builds and backend production promotion require separate approval.
