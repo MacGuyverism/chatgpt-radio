@@ -1,4 +1,6 @@
+import array
 import subprocess
+import sys
 import json
 from mutagen.id3 import ID3, CHAP, CTOC, TIT2, CTOCFlags
 import re
@@ -124,5 +126,49 @@ def render_episode(generated,out,final,ai):
         chapters.append({'id':chapter_id,'title':title,'reporter':presenters[title][0],'start_ms':start,'end_ms':end})
     tags.add(CTOC(element_id='toc', flags=CTOCFlags.TOP_LEVEL | CTOCFlags.ORDERED, child_element_ids=[c['id'] for c in chapters], sub_frames=[TIT2(encoding=3,text='Segments')]))
     tags.save(final, v2_version=3)
-    final.with_suffix('.json').write_text(json.dumps({'schema_version':1,'duration_ms':round(actual*1000),'chapters':chapters},indent=2))
+    final.with_suffix(".json").write_text(json.dumps({
+        "schema_version": 1, "duration_ms": round(actual * 1000),
+        "chapters": chapters, "waveform": waveform(final)
+    }, indent=2))
     return actual
+
+
+def waveform(audio, bars=74):
+    data = subprocess.check_output([
+        "ffmpeg", "-v", "error", "-i", str(audio), "-ar", "1000", "-ac", "1",
+        "-f", "s16le", "-"
+    ])
+    samples = array.array("h")
+    samples.frombytes(data)
+    if sys.byteorder != "little":
+        samples.byteswap()
+    peaks = [max(map(abs, samples[i * len(samples) // bars:(i + 1) * len(samples) // bars]), default=0)
+             for i in range(bars)]
+    maximum = max(peaks) or 1
+    return [round(peak / maximum, 3) for peak in peaks]
+
+
+def validate_chapters(audio):
+    metadata = json.loads(audio.with_suffix(".json").read_text())
+    tags = ID3(audio)
+    chapters = metadata["chapters"]
+    toc, = tags.getall("CTOC")
+    frames = {frame.element_id: frame for frame in tags.getall("CHAP")}
+    ids = [chapter["id"] for chapter in chapters]
+    if not ids or len(ids) != len(frames) or toc.child_element_ids != ids:
+        raise ValueError("Chapter order mismatch")
+    if toc.flags != CTOCFlags.TOP_LEVEL | CTOCFlags.ORDERED:
+        raise ValueError("Invalid chapter table flags")
+    if metadata["duration_ms"] != round(duration(audio) * 1000):
+        raise ValueError("Chapter duration differs from the audio")
+    end = 0
+    for chapter in chapters:
+        frame = frames[chapter["id"]]
+        if (end != frame.start_time or frame.start_time != chapter["start_ms"]
+                or frame.end_time != chapter["end_ms"] or frame.end_time <= end
+                or str(frame.sub_frames["TIT2"]) != chapter["title"] or not chapter["reporter"]):
+            raise ValueError("Embedded chapter differs from metadata")
+        end = frame.end_time
+    if end != metadata["duration_ms"]:
+        raise ValueError("Chapters do not cover the entire broadcast")
+    return metadata

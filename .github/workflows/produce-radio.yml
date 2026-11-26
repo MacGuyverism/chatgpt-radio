@@ -8,12 +8,12 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: chatgpt-radio-production
+  group: chatgpt-radio-production-${{ github.ref_name }}
   cancel-in-progress: false
 jobs:
   broadcast:
     runs-on: ubuntu-24.04
-    timeout-minutes: 55
+    timeout-minutes: 85
     steps:
       - name: Check Eastern production window
         id: window
@@ -54,7 +54,10 @@ jobs:
           ffprobe -version | head -n 1
       - name: Install article and chapter dependencies
         if: steps.window.outputs.run == 'true'
-        run: python3 -m pip install --disable-pip-version-check 'mutagen==1.47.0' 'trafilatura==2.0.0'
+        run: python3 -m pip install --disable-pip-version-check -r requirements.txt
+      - name: Verify backend reliability
+        if: steps.window.outputs.run == 'true'
+        run: python3 -m unittest discover -s tests -v
       - name: Produce broadcast
         if: steps.window.outputs.run == 'true'
         env:
