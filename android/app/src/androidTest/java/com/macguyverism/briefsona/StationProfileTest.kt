@@ -32,17 +32,35 @@ class StationProfileTest {
         compose.onNodeWithText("Stations").performClick()
         compose.onNodeWithContentDescription("Add station").performClick()
         compose.onNodeWithText("Station name").performTextInput(name)
-        compose.onNodeWithText("Scheduled").performClick()
+        compose.onNodeWithText("Schedule · Manual").performScrollTo().performClick()
+        compose.onNodeWithText("Produce broadcast now").assertIsNotEnabled()
+        compose.onNodeWithText("Retry production").assertIsNotEnabled()
+        compose.onNodeWithText("Automatic").performClick()
         compose.onNodeWithText("Pause schedule").performScrollTo().performClick()
-        compose.onNodeWithText("Save station").performScrollTo().performClick()
+        compose.onNodeWithText("Save schedule").performScrollTo().performClick()
+        compose.onNodeWithText("Back to Stations").performScrollTo().performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText(name).fetchSemanticsNodes().isNotEmpty() }
 
         compose.activityRule.scenario.recreate()
         compose.waitUntil(5_000) { compose.onAllNodesWithText(name).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText(name).performScrollTo().performClick()
+        compose.onNodeWithText("Schedule · Scheduled (paused)").performScrollTo().performClick()
         compose.onNodeWithText("Resume schedule").assertExists()
         compose.onNodeWithText("Resume schedule").performScrollTo().performClick()
         compose.onNodeWithText("Pause schedule").assertExists()
+    }
+
+    @Test fun scheduleOnlyChangesModeAndQueuesEachRevision() = runBlocking {
+        val dao = database.stations()
+        val saved = StationProfile(name = "Drive", minutes = 45, instructions = "Traffic")
+        dao.save(saved)
+        val stale = saved.copy(name = "Unsaved name", minutes = 10, random = true)
+        for ((index, mode) in listOf(StationMode.SCHEDULED, StationMode.PAUSED, StationMode.MANUAL).withIndex()) {
+            dao.saveSchedule(stale, mode)
+            val record = dao.pending().single()
+            assertEquals(saved.copy(mode = mode), record.decode())
+            assertEquals(index.toLong() + 2, record.revision)
+        }
     }
 
     @Test fun savedSegmentOrderWeightsAndCuesSurviveReopening() = runBlocking {

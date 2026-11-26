@@ -131,6 +131,19 @@ internal abstract class StationDao {
     abstract suspend fun mark(id: String, revision: Long, status: String)
 
     @Transaction
+    open suspend fun saveSchedule(draft: StationProfile, mode: StationMode) {
+        val station = find(draft.id)?.decode() ?: if (draft.id == StationProfile.morningCommute.id) {
+            StationProfile.morningCommute
+        } else {
+            StationProfile(id = draft.id, name = draft.name.trim(), segments = listOf(
+                StationSegment(id = draft.segments.first().id, name = "Opening"),
+                StationSegment(id = draft.segments.last().id, name = "Closing")
+            ))
+        }
+        save(station.copy(mode = mode))
+    }
+
+    @Transaction
     open suspend fun saveSegment(profile: StationProfile, segment: StationSegment): StationProfile {
         val committed = (find(profile.id)?.decode() ?: profile).withSegment(segment)
         save(committed)

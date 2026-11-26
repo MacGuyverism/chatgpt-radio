@@ -20,10 +20,11 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import java.time.Instant
 
 @Composable
 internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, morning: StationProfile,
-    playable: Boolean, loadStation: () -> Unit, content: @Composable () -> Unit) {
+    playable: Boolean, status: String, retrievePublished: (() -> Unit)?, loadStation: () -> Unit, content: @Composable () -> Unit) {
     val context = LocalContext.current
     val dao = remember(context) { StationDatabase.get(context) }
     val scope = rememberCoroutineScope()
@@ -31,11 +32,13 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
     var lineupJson by rememberSaveable { mutableStateOf<String?>(null) }
     var segmentJson by rememberSaveable { mutableStateOf<String?>(null) }
     val segment = remember(segmentJson) { segmentJson?.let { StationSegment.from(JSONObject(it)) } }
+    var scheduleMode by rememberSaveable { mutableStateOf<StationMode?>(null) }
+    val editingSchedule = scheduleMode != null
     val editingSegments = lineupJson != null
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
     val draft = remember(draftJson) { draftJson?.let { StationProfile.from(JSONObject(it)) } }
-    LaunchedEffect(draft?.id, editingSegments, segment?.id) { scroll.scrollTo(0) }
+    LaunchedEffect(draft?.id, editingSegments, segment?.id, editingSchedule) { scroll.scrollTo(0) }
 
     fun edit(profile: StationProfile) {
         draftJson = profile.json().toString()
@@ -46,6 +49,8 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
         error = null
         if (segmentJson != null) {
             segmentJson = null
+        } else if (editingSchedule) {
+            scheduleMode = null
         } else if (editingSegments) {
             lineupJson = null
         } else {
@@ -103,19 +108,48 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
 
     val heading = when {
         segment != null -> "Edit Segment"
+        editingSchedule -> "Schedule"
         editingSegments -> "Segments"
         else -> "Station Profile"
     }
     TextButton(onClick = ::goBack, enabled = !saving) {
         Text(when {
             segment != null -> "Back to Segments"
-            editingSegments -> "Back to Station Profile"
+            editingSchedule || editingSegments -> "Back to Station Profile"
             else -> "Back to Stations"
         })
     }
     Text(heading, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         style = MaterialTheme.typography.headlineSmall)
     error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    val mode = scheduleMode
+    if (mode != null) {
+        val isBroadcastStation = draft.id == morning.id
+        StationSchedule(draft.name, mode, saving, if (isBroadcastStation) status else "",
+            if (isBroadcastStation) retrievePublished else null, onMode = {
+                scheduleMode = it
+                error = null
+            }, onSave = {
+                saving = true
+                scope.launch {
+                    try {
+                        dao.saveSchedule(draft, mode)
+                        edit(draft.copy(mode = mode))
+                        scheduleMode = null
+                        StationBackup.request(context)
+                    } catch (failure: CancellationException) {
+                        throw failure
+                    } catch (failure: IllegalArgumentException) {
+                        error = failure.message
+                    } catch (_: Exception) {
+                        error = "Could not save the schedule. Try again."
+                    } finally {
+                        saving = false
+                    }
+                }
+            })
+        return
+    }
     if (editingSegments) {
         val lineup = remember(lineupJson) { StationProfile.from(JSONObject(requireNotNull(lineupJson))) }
         if (segment != null) {
@@ -188,21 +222,9 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
     }, label = { Text("Target duration (minutes)") }, singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         modifier = Modifier.fillMaxWidth(), enabled = !saving)
-    Text("Production mode", style = MaterialTheme.typography.titleMedium)
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        FilterChip(draft.mode == StationMode.MANUAL, { edit(draft.copy(mode = StationMode.MANUAL)) },
-            label = { Text("Manual") }, enabled = !saving)
-        FilterChip(draft.mode != StationMode.MANUAL, {
-            if (draft.mode == StationMode.MANUAL) edit(draft.copy(mode = StationMode.SCHEDULED))
-        }, label = { Text("Scheduled") }, enabled = !saving)
-    }
-    if (draft.mode != StationMode.MANUAL) {
-        if (draft.mode == StationMode.PAUSED) Text(draft.mode.label)
-        OutlinedButton(onClick = {
-            edit(draft.copy(mode = if (draft.mode == StationMode.PAUSED) StationMode.SCHEDULED else StationMode.PAUSED))
-        }, enabled = !saving) {
-            Text(if (draft.mode == StationMode.PAUSED) "Resume schedule" else "Pause schedule")
-        }
+    OutlinedButton(onClick = { scheduleMode = draft.mode; error = null },
+        modifier = Modifier.fillMaxWidth(), enabled = !saving) {
+        Text("Schedule · ${draft.mode.label}")
     }
     OutlinedButton(onClick = { lineupJson = draft.json().toString() }, modifier = Modifier.fillMaxWidth(), enabled = !saving) {
         Text("Segments · ${draft.segments.size}")
@@ -216,6 +238,48 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
     listOf("Reporter library", "Produce broadcast now", "Delete station").forEach { label ->
         OutlinedButton(onClick = {}, enabled = false) { Text(label) }
     }
+}
+
+@Composable
+private fun StationSchedule(name: String, mode: StationMode, saving: Boolean, status: String,
+    retrievePublished: (() -> Unit)?, onMode: (StationMode) -> Unit, onSave: () -> Unit) {
+    if (name.isNotBlank()) Text(name, style = MaterialTheme.typography.titleMedium)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilterChip(mode == StationMode.MANUAL, { onMode(StationMode.MANUAL) },
+            label = { Text("Manual") }, enabled = !saving)
+        FilterChip(mode != StationMode.MANUAL, {
+            if (mode == StationMode.MANUAL) onMode(StationMode.SCHEDULED)
+        }, label = { Text("Automatic") }, enabled = !saving)
+    }
+    if (mode != StationMode.MANUAL) {
+        Text(mode.label)
+        val paused = mode == StationMode.PAUSED
+        OutlinedButton(onClick = { onMode(if (paused) StationMode.SCHEDULED else StationMode.PAUSED) },
+            enabled = !saving) { Text(if (paused) "Resume schedule" else "Pause schedule") }
+    }
+    listOf("Broadcast days", "Release time", "Time zone").forEach { label ->
+        OutlinedButton(onClick = {}, enabled = false) { Text(label) }
+    }
+    if (mode == StationMode.SCHEDULED && status.isNotBlank()) {
+        val json = remember(status) { runCatching { JSONObject(status) }.getOrNull() }
+        val now = Instant.now()
+        val next = listOf("", "next_").firstOrNull { prefix ->
+            runCatching { Instant.parse(json?.optString("${prefix}release_at")).isAfter(now) }.getOrDefault(false)
+        }
+        if (next != null && json != null) {
+            Text("Next broadcast · " + localTime(json.optString("${next}release_at")))
+            val start = localTime(json.optString("${next}production_at"))
+            if (start.isNotEmpty()) Text("Production start · $start")
+        }
+    }
+    if (mode == StationMode.MANUAL) {
+        OutlinedButton(onClick = {}, enabled = false) { Text("Produce broadcast now") }
+        OutlinedButton(onClick = {}, enabled = false) { Text("Retry production") }
+    }
+    OutlinedButton(onClick = { retrievePublished?.invoke() }, enabled = retrievePublished != null && !saving) {
+        Text("Retrieve existing broadcast")
+    }
+    Button(onClick = onSave, enabled = !saving) { Text("Save schedule") }
 }
 
 @Composable

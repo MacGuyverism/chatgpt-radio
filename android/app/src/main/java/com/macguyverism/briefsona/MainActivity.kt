@@ -217,7 +217,12 @@ private fun Briefsona() {
                             }
                         )
                         "Stations" -> screenState.SaveableStateProvider("station-pages") {
-                            StationPages(scroll, stations.value, morning, visible.isNotEmpty(), {
+                            StationPages(scroll, stations.value, morning, visible.isNotEmpty(),
+                                status = status,
+                                retrievePublished = if (endpoint != null && visible.any { it.remote }) {
+                                    { Retrieval.request(context, wifi, "") }
+                                } else null,
+                                loadStation = {
                                 val episode = active ?: chosen ?: visible.firstOrNull()
                                 if (episode != null) select(episode)
                                 screen = "Radio"
@@ -607,6 +612,6 @@ private fun Toggle(label: String, value: Boolean, action: (Boolean) -> Unit) {
 
 private fun clock(ms: Long): String = "%d:%02d".format(Locale.ROOT, ms / 60_000, ms / 1000 % 60)
 private fun size(bytes: Long): String = "%.1f MB".format(bytes / 1_048_576.0)
-private fun localTime(text: String): String = runCatching {
+internal fun localTime(text: String): String = runCatching {
     DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withZone(ZoneId.systemDefault()).format(Instant.parse(text))
 }.getOrDefault("")
