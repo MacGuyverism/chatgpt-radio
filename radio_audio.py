@@ -101,7 +101,7 @@ def render_episode(generated,out,final,ai):
     master=out / "master.wav"
     concat(parts,master,out)
     length=duration(master)
-    tempo=1 if 1620<=length<=1740 else length/1680
+    tempo=1 if length<=1740 else length/1680
     if not 0.88<=tempo<=1.12:
         raise RuntimeError("Episode outside safe tempo adjustment range")
     ff("-i",master,"-af",f"atempo={tempo:.6f},loudnorm=I=-16:TP=-1.5:LRA=7",
