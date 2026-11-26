@@ -35,6 +35,7 @@ object Prefs {
     val retention = intPreferencesKey("retention")
     val endpoint = stringPreferencesKey("endpoint")
     val status = stringPreferencesKey("status")
+    val retrieval = stringPreferencesKey("retrieval_result")
     val lastSync = longPreferencesKey("last_sync")
     val selected = stringPreferencesKey("selected")
 }
@@ -128,7 +129,13 @@ private fun <T> read(url: String, consume: (InputStream, Long) -> T): T {
     connection.readTimeout = 20_000
     connection.instanceFollowRedirects = false
     try {
-        if (connection.responseCode == 404 || connection.responseCode == 400) throw MissingObject()
+        if (connection.responseCode == 404) throw MissingObject()
+        if (connection.responseCode == 400) {
+            val message = connection.errorStream?.bufferedReader()?.use { it.readLine().orEmpty().take(1024) }.orEmpty()
+            if (message.contains("not found", ignoreCase = true) || message.contains("not_found", ignoreCase = true)) {
+                throw MissingObject()
+            }
+        }
         if (connection.responseCode != 200) throw IOException("HTTP ${connection.responseCode}")
         return connection.inputStream.use { consume(it, connection.contentLengthLong) }
     } finally {
@@ -174,12 +181,19 @@ internal fun copyVerified(stream: InputStream, file: File, size: Long, hash: Str
 class Retrieval(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         try {
-            syncLock.withLock { sync() }
+            syncLock.withLock {
+                applicationContext.settings.edit { it[Prefs.retrieval] = "Retrieving" }
+                sync()
+                applicationContext.settings.edit { it[Prefs.retrieval] = "Connected" }
+            }
             Result.success()
         } catch (cancel: kotlinx.coroutines.CancellationException) {
             throw cancel
         } catch (_: Exception) {
             val attempt = inputData.getInt("retry_attempt", 0)
+            applicationContext.settings.edit {
+                it[Prefs.retrieval] = if (attempt < 12) "Retrieval delayed" else "Retrieval failed"
+            }
             if (attempt < 12) {
                 val wifi = applicationContext.settings.data.first()[Prefs.wifi] ?: false
                 request(applicationContext, wifi, inputData.getString("episode"), 300_000,
@@ -201,7 +215,7 @@ class Retrieval(context: Context, params: WorkerParameters) : CoroutineWorker(co
             }
         } catch (_: MissingObject) {
             try { listOf(JSONObject(readJson("$base/latest.json"))) }
-            catch (_: MissingObject) { emptyList() }
+            catch (_: MissingObject) { throw IOException("No broadcast index available") }
         }.sortedByDescending { it.optString("published_at", it.getString("date")) }
         val database = Library.get(context)
         val dao = database.episodes()
@@ -250,6 +264,14 @@ class Retrieval(context: Context, params: WorkerParameters) : CoroutineWorker(co
             }
         }
         failure?.let { throw it }
+        if (status.isNotBlank() && manual == null) {
+            val state = JSONObject(status)
+            val elapsed = java.time.Duration.between(Instant.parse(state.getString("release_at")), Instant.now())
+            val pending = state.optString("state") in listOf("In progress", "Awaiting release", "Delayed")
+            if (pending && !elapsed.isNegative && elapsed.toMinutes() < 60) {
+                throw IOException("Waiting for scheduled release")
+            }
+        }
     }
 
     private suspend fun download(episode: Episode, item: JSONObject, base: String, dao: LibraryDao) {

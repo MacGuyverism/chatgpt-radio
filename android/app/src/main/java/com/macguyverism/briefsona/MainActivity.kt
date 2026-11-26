@@ -434,8 +434,14 @@ private fun Stations(status: String, episodes: List<Episode>, prefs: Preferences
     var now by remember { mutableStateOf(Instant.now()) }
     LaunchedEffect(Unit) { while (true) { delay(15_000); now = Instant.now() } }
     val heartbeatStale = runCatching { Instant.parse(heartbeat).plusSeconds(120) < now }.getOrDefault(false)
-    val summary = if (state in listOf("In progress", "Awaiting release") && heartbeatStale) "Delayed"
-        else state ?: "Scheduled"
+    val releasedDay = runCatching { LocalDate.parse(json?.optString("date")) }.getOrNull()
+    val nextStart = runCatching { Instant.parse(json?.optString("next_production_at")) }.getOrNull()
+    val summary = when {
+        releasedDay != null && releasedDay < LocalDate.now().minusDays(6) -> "Expired"
+        state in listOf("In progress", "Awaiting release") && heartbeatStale -> "Delayed"
+        idle && nextStart != null && now >= nextStart -> "Delayed"
+        else -> state ?: "Scheduled"
+    }
     val next = json?.optString(if (idle) "next_release_at" else "release_at").orEmpty()
     val production = json?.optString(if (idle) "next_production_at" else "production_at").orEmpty()
     val latest = episodes.firstOrNull()
@@ -452,6 +458,7 @@ private fun Stations(status: String, episodes: List<Episode>, prefs: Preferences
         OutlinedButton(onClick = retrieve, enabled = configured, modifier = Modifier.fillMaxWidth()) {
             Text("Retrieve broadcast")
         }
+        prefs[Prefs.retrieval]?.takeUnless { it == "Connected" }?.let { Text(it, color = muted) }
         if (!configured) Text("Set the Supabase project URL in Settings.", color = muted)
     }
     Panel {
@@ -519,6 +526,7 @@ private fun Settings(prefs: Preferences, episodes: List<Episode>,
     }
     Panel {
         Text("Connection", fontWeight = FontWeight.Bold)
+        SettingValue("Server status", prefs[Prefs.retrieval] ?: "Pending")
         val sync = prefs[Prefs.lastSync]
         SettingValue("Last synchronization", sync?.let { localTime(Instant.ofEpochMilli(it).toString()) } ?: "Pending")
         OutlinedTextField(endpoint, { endpoint = it; invalid = false }, isError = invalid, singleLine = true,
