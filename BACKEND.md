@@ -7,3 +7,11 @@ Preferred, supplemental and discovery feeds are queried concurrently on every ru
 Production begins at 06:15 America/New_York for the 07:00 release. A non-upserting daily Supabase claim prevents duplicate scheduled paid work. Intentional main-branch manual dispatches are serialized with scheduled production by GitHub Actions. Staging holds local files and refreshes status every 30 seconds. Publishing verifies uploaded audio and chapter bytes before indexing immutable media objects. Failed production preserves the previously published episode. Retention covers the current and previous six Eastern dates. The last successful edition remains available if it falls outside that window during a prolonged outage.
 
 The public bucket exposes `archive.json`, legacy `latest.json`, and `status.json` below `/storage/v1/object/public/chatgpt-radio/`. The archive contains immutable episode paths, timestamps, duration, byte count and SHA-256 for the MP3 and chapter JSON. New chapter files include waveform samples. Android needs the HTTPS project origin in Settings. Production uses the existing private GitHub secrets. Public storage credentials are unnecessary.
+
+## November 25 Eastern review broadcast
+
+The feature run retrieved 98 accessible articles from 124 candidate URLs. It produced a 4,052-word script and a 28:00 mono MP3 at 64 kbps. FFmpeg decoded the full downloaded artifact, and all nine embedded chapter titles, time boundaries and ordering matched the JSON sidecar. The run used test mode. [Review broadcast](https://github.com/MacGuyverism/chatgpt-radio/actions/runs/45730398204)
+
+A separate live retrieval check returned 40 articles through preferred feeds, 27 through supplemental feeds, and 35 through Google News discovery. Newly verified publisher endpoints included Al Jazeera, Fox Business, NASA, ScienceDaily, Ars Technica, TechCrunch, KrebsOnSecurity, BleepingComputer and Space.com. Some candidate endpoints returned access errors, HTML, or an unreadable article. Availability varies by runner and publisher.
+
+The Actions APK embeds the public HTTPS Supabase project origin. Locally built APKs can supply it through BRIEFSONA_PROJECT_URL at build time or through Settings on the device.
