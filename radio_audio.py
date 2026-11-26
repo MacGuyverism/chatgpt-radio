@@ -1,4 +1,8 @@
+import array
 import subprocess
+import sys
+import json
+from mutagen.id3 import ID3, CHAP, CTOC, TIT2, CTOCFlags
 import re
 import zipfile
 from pathlib import Path
@@ -64,7 +68,9 @@ def chunks(text):
 
 def render_episode(generated,out,final,ai):
     parts=[]
+    boundaries=[]
     for i,(title,text) in enumerate(generated):
+        boundaries.append((title, len(parts)))
         name,voice,style=presenters[title]
         speech=[]
         for j,chunk in enumerate(chunks(text)):
@@ -97,9 +103,72 @@ def render_episode(generated,out,final,ai):
     master=out / "master.wav"
     concat(parts,master,out)
     length=duration(master)
-    tempo=1 if 1620<=length<=1740 else length/1680
+    tempo=1 if length<=1740 else length/1680
     if not 0.88<=tempo<=1.12:
         raise RuntimeError("Episode outside safe tempo adjustment range")
     ff("-i",master,"-af",f"atempo={tempo:.6f},loudnorm=I=-16:TP=-1.5:LRA=7",
         "-ar",24000,"-ac",1,"-c:a","libmp3lame","-b:a","64k",final)
-    return duration(final)
+    actual = duration(final)
+    offsets = [0.0]
+    for part in parts:
+        offsets.append(offsets[-1] + duration(part))
+    chapters = []
+    tags = ID3(final)
+    tags.delall('CHAP')
+    tags.delall('CTOC')
+    for i, (title, index) in enumerate(boundaries):
+        start = round(offsets[index] / tempo * 1000)
+        end = round(offsets[boundaries[i+1][1]] / tempo * 1000) if i+1 < len(boundaries) else round(actual * 1000)
+        chapter_id = f'segment-{i+1}'
+        if not 0 <= start < end <= round(actual * 1000):
+            raise RuntimeError('Invalid chapter timing')
+        tags.add(CHAP(element_id=chapter_id, start_time=start, end_time=end, start_offset=0xffffffff, end_offset=0xffffffff, sub_frames=[TIT2(encoding=3,text=title)]))
+        chapters.append({'id':chapter_id,'title':title,'reporter':presenters[title][0],'start_ms':start,'end_ms':end})
+    tags.add(CTOC(element_id='toc', flags=CTOCFlags.TOP_LEVEL | CTOCFlags.ORDERED, child_element_ids=[c['id'] for c in chapters], sub_frames=[TIT2(encoding=3,text='Segments')]))
+    tags.save(final, v2_version=3)
+    final.with_suffix(".json").write_text(json.dumps({
+        "schema_version": 1, "duration_ms": round(actual * 1000),
+        "chapters": chapters, "waveform": waveform(final)
+    }, indent=2))
+    return actual
+
+
+def waveform(audio, bars=74):
+    data = subprocess.check_output([
+        "ffmpeg", "-v", "error", "-i", str(audio), "-ar", "1000", "-ac", "1",
+        "-f", "s16le", "-"
+    ])
+    samples = array.array("h")
+    samples.frombytes(data)
+    if sys.byteorder != "little":
+        samples.byteswap()
+    peaks = [max(map(abs, samples[i * len(samples) // bars:(i + 1) * len(samples) // bars]), default=0)
+             for i in range(bars)]
+    maximum = max(peaks) or 1
+    return [round(peak / maximum, 3) for peak in peaks]
+
+
+def validate_chapters(audio):
+    metadata = json.loads(audio.with_suffix(".json").read_text())
+    tags = ID3(audio)
+    chapters = metadata["chapters"]
+    toc, = tags.getall("CTOC")
+    frames = {frame.element_id: frame for frame in tags.getall("CHAP")}
+    ids = [chapter["id"] for chapter in chapters]
+    if not ids or len(ids) != len(frames) or toc.child_element_ids != ids:
+        raise ValueError("Chapter order mismatch")
+    if toc.flags != CTOCFlags.TOP_LEVEL | CTOCFlags.ORDERED:
+        raise ValueError("Invalid chapter table flags")
+    if metadata["duration_ms"] != round(duration(audio) * 1000):
+        raise ValueError("Chapter duration differs from the audio")
+    end = 0
+    for chapter in chapters:
+        frame = frames[chapter["id"]]
+        if (end != frame.start_time or frame.start_time != chapter["start_ms"]
+                or frame.end_time != chapter["end_ms"] or frame.end_time <= end
+                or str(frame.sub_frames["TIT2"]) != chapter["title"] or not chapter["reporter"]):
+            raise ValueError("Embedded chapter differs from metadata")
+        end = frame.end_time
+    if end != metadata["duration_ms"]:
+        raise ValueError("Chapters do not cover the entire broadcast")
+    return metadata

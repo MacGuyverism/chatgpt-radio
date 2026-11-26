@@ -8,12 +8,12 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: chatgpt-radio-production
+  group: ${{ github.ref_name == 'main' && 'chatgpt-radio-production' || format('chatgpt-radio-production-{0}', github.ref_name) }}
   cancel-in-progress: false
 jobs:
   broadcast:
     runs-on: ubuntu-24.04
-    timeout-minutes: 55
+    timeout-minutes: 85
     steps:
       - name: Check Eastern production window
         id: window
@@ -52,9 +52,16 @@ jobs:
           fi
           ffmpeg -version | head -n 1
           ffprobe -version | head -n 1
+      - name: Install article and chapter dependencies
+        if: steps.window.outputs.run == 'true'
+        run: python3 -m pip install --disable-pip-version-check -r requirements.txt
+      - name: Verify backend reliability
+        if: steps.window.outputs.run == 'true'
+        run: python3 -m unittest discover -s tests -v
       - name: Produce broadcast
         if: steps.window.outputs.run == 'true'
         env:
+          RADIO_EVENT: ${{ github.event_name }}
           RADIO_TEST_ONLY: ${{ github.ref_name != 'main' && '1' || '0' }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -65,7 +72,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: radio-test-broadcast
-          path: build/chatgpt-radio-*.mp3
+          path: |
+            build/chatgpt-radio-*.mp3
+            build/chatgpt-radio-*.json
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
