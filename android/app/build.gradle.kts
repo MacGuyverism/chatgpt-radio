@@ -15,12 +15,22 @@ android {
             "Expected a public Supabase project origin"
         }
         buildConfigField("String", "PROJECT_ORIGIN", "\"$projectOrigin\"")
+        val backupOrigin = providers.environmentVariable("BRIEFSONA_BACKUP_URL").orNull.orEmpty().trimEnd('/')
+        val backupKey = providers.environmentVariable("BRIEFSONA_BACKUP_PUBLISHABLE_KEY").orNull.orEmpty()
+        require(backupOrigin.isEmpty() || Regex("https://[a-z0-9-]+\\.supabase\\.co").matches(backupOrigin)) {
+            "Expected a public Supabase backup project origin"
+        }
+        require(backupKey.isEmpty() || Regex("sb_publishable_[A-Za-z0-9_-]+").matches(backupKey)) {
+            "Expected a Supabase publishable key"
+        }
+        buildConfigField("String", "STATION_BACKUP_ORIGIN", "\"$backupOrigin\"")
+        buildConfigField("String", "STATION_BACKUP_KEY", "\"$backupKey\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         applicationId = "com.macguyverism.briefsona"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.0.1"
+        versionCode = 2
+        versionName = "0.0.2"
     }
 
     buildFeatures { compose = true; buildConfig = true }

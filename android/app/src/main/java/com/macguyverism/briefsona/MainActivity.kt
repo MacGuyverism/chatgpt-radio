@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -91,6 +92,7 @@ private fun Briefsona() {
     val endpoint = prefs[Prefs.endpoint] ?: BuildConfig.PROJECT_ORIGIN.takeIf { it.isNotBlank() }
     val status = prefs[Prefs.status].orEmpty()
     var screen by rememberSaveable { mutableStateOf("Radio") }
+    val screenState = rememberSaveableStateHolder()
     var controller by remember { mutableStateOf<MediaController?>(null) }
     var position by remember { mutableLongStateOf(0L) }
     var playing by remember { mutableStateOf(false) }
@@ -136,6 +138,7 @@ private fun Briefsona() {
             Retrieval.request(context, wifi)
         }
     }
+    LaunchedEffect(Unit) { StationBackup.schedule(context) }
     LifecycleResumeEffect(endpoint, wifi) {
         if (endpoint != null && System.currentTimeMillis() - (prefs[Prefs.lastSync] ?: 0) > 300_000) {
             Retrieval.request(context, wifi)
@@ -177,7 +180,8 @@ private fun Briefsona() {
         }) { insets ->
             BoxWithConstraints(Modifier.padding(insets).fillMaxSize()) {
                 val landscape = maxWidth >= 650.dp || maxWidth > maxHeight * 1.25f
-                Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                val scroll = rememberScrollState()
+                Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(screen.uppercase(), color = accent, fontWeight = FontWeight.Bold,
                         letterSpacing = 3.sp, fontSize = 24.sp)
@@ -208,9 +212,13 @@ private fun Briefsona() {
                                 save { it[Prefs.speed] = speed }
                             }
                         )
-                        "Stations" -> Stations(status, visible, prefs, endpoint != null, {
-                            Retrieval.request(context, wifi, "")
-                        }, { screen = "Radio" })
+                        "Stations" -> screenState.SaveableStateProvider("station-pages") {
+                            StationPages(scroll) {
+                                Stations(status, visible, prefs, endpoint != null, {
+                                    Retrieval.request(context, wifi, "")
+                                }, { screen = "Radio" })
+                            }
+                        }
                         else -> Settings(prefs, items, save, controller)
                     }
                     Spacer(Modifier.height(4.dp))
@@ -544,7 +552,7 @@ private fun Settings(prefs: Preferences, episodes: List<Episode>,
         Text("About", fontWeight = FontWeight.Bold)
         Text("Briefsona", style = MaterialTheme.typography.titleLarge)
         Text("The ultimate news experience")
-        Text("Version 0.0.1 · MacGuyverism", color = muted)
+        Text("Version ${BuildConfig.VERSION_NAME} · MacGuyverism", color = muted)
         Text("Broadcast scripts and voices are generated with AI. Downloads and listening position are stored on this device.",
             color = muted, style = MaterialTheme.typography.bodySmall)
     }

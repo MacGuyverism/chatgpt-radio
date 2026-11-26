@@ -23,9 +23,11 @@ jobs:
       - run: gradle -p android testDebugUnitTest assembleDebug
         env:
           BRIEFSONA_PROJECT_URL: ${{ secrets.SUPABASE_URL }}
+          BRIEFSONA_BACKUP_URL: ${{ vars.BRIEFSONA_BACKUP_URL }}
+          BRIEFSONA_BACKUP_PUBLISHABLE_KEY: ${{ vars.BRIEFSONA_BACKUP_PUBLISHABLE_KEY }}
       - uses: actions/upload-artifact@v4
         with:
-          name: briefsona-0.0.1-debug
+          name: briefsona-0.0.2-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
