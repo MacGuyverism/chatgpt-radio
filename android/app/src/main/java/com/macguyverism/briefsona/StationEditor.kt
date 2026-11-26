@@ -29,11 +29,13 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
     val scope = rememberCoroutineScope()
     var draftJson by rememberSaveable { mutableStateOf<String?>(null) }
     var lineupJson by rememberSaveable { mutableStateOf<String?>(null) }
+    var segmentJson by rememberSaveable { mutableStateOf<String?>(null) }
+    val segment = remember(segmentJson) { segmentJson?.let { StationSegment.from(JSONObject(it)) } }
     val editingSegments = lineupJson != null
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
     val draft = remember(draftJson) { draftJson?.let { StationProfile.from(JSONObject(it)) } }
-    LaunchedEffect(draft?.id, editingSegments) { scroll.scrollTo(0) }
+    LaunchedEffect(draft?.id, editingSegments, segment?.id) { scroll.scrollTo(0) }
 
     fun edit(profile: StationProfile) {
         draftJson = profile.json().toString()
@@ -41,11 +43,13 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
     }
 
     fun goBack() {
-        if (editingSegments) {
+        error = null
+        if (segmentJson != null) {
+            segmentJson = null
+        } else if (editingSegments) {
             lineupJson = null
         } else {
             draftJson = null
-            error = null
         }
     }
 
@@ -97,14 +101,56 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
         return
     }
 
-    TextButton(onClick = ::goBack, enabled = !saving) {
-        Text(if (editingSegments) "Back to Station Profile" else "Back to Stations")
+    val heading = when {
+        segment != null -> "Edit Segment"
+        editingSegments -> "Segments"
+        else -> "Station Profile"
     }
-    Text(if (editingSegments) "Segments" else "Station Profile", style = MaterialTheme.typography.headlineSmall)
+    TextButton(onClick = ::goBack, enabled = !saving) {
+        Text(when {
+            segment != null -> "Back to Segments"
+            editingSegments -> "Back to Station Profile"
+            else -> "Back to Stations"
+        })
+    }
+    Text(heading, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        style = MaterialTheme.typography.headlineSmall)
     error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     if (editingSegments) {
         val lineup = remember(lineupJson) { StationProfile.from(JSONObject(requireNotNull(lineupJson))) }
-        SegmentEditor(lineup, edit = {
+        if (segment != null) {
+            val pinned = segment.id == lineup.segments.first().id || segment.id == lineup.segments.last().id
+            EditSegment(segment, pinned, saving, update = {
+                if (!saving) {
+                    segmentJson = it.json().toString()
+                    error = null
+                }
+            }, onSave = {
+                saving = true
+                scope.launch {
+                    try {
+                        val committed = dao.saveSegment(draft, segment)
+                        edit(draft.copy(segments = committed.segments))
+                        lineupJson = lineup.withSegment(segment).json().toString()
+                        segmentJson = null
+                        StationBackup.request(context)
+                    } catch (failure: CancellationException) {
+                        throw failure
+                    } catch (failure: IllegalArgumentException) {
+                        error = failure.message
+                    } catch (_: Exception) {
+                        error = "Could not save the segment. Try again."
+                    } finally {
+                        saving = false
+                    }
+                }
+            })
+            return
+        }
+        SegmentLineup(lineup, openSegment = {
+            error = null
+            segmentJson = it.json().toString()
+        }, edit = {
             if (!saving) {
                 lineupJson = it.json().toString()
                 error = null
@@ -173,10 +219,50 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
 }
 
 @Composable
-private fun SegmentEditor(profile: StationProfile, edit: (StationProfile) -> Unit, saving: Boolean, saveLineup: () -> Unit) {
+private fun SegmentLineup(profile: StationProfile, openSegment: (StationSegment) -> Unit,
+    edit: (StationProfile) -> Unit, saving: Boolean, saveLineup: () -> Unit) {
+    Text("${profile.segments.count { it.enabled }} of ${profile.segments.size} enabled")
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilterChip(!profile.random, { edit(profile.copy(random = false)) }, enabled = !saving, label = { Text("Fixed order") })
+        FilterChip(profile.random, { edit(profile.copy(random = true)) }, enabled = !saving, label = { Text("Random order") })
+    }
+    profile.segments.forEachIndexed { index, segment ->
+        val custom = index in 1 until profile.segments.lastIndex
+        fun move(destination: Int) {
+            edit(profile.copy(segments = profile.segments.toMutableList().apply { add(destination, removeAt(index)) }))
+        }
+        OutlinedCard(onClick = { openSegment(segment) }, enabled = !saving, modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(12.dp)) {
+                Text(segment.name, style = MaterialTheme.typography.titleMedium)
+                val role = when (index) {
+                    0 -> "Opening · pinned"
+                    profile.segments.lastIndex -> "Closing · pinned"
+                    else -> if (segment.enabled) "Enabled" else "Disabled"
+                }
+                Text("$role · ${segment.weight}×")
+                if (custom) {
+                    Row {
+                        TextButton(onClick = { move(index - 1) }, enabled = !saving && index > 1) { Text("Move up") }
+                        TextButton(onClick = { move(index + 1) },
+                            enabled = !saving && index < profile.segments.lastIndex - 1) { Text("Move down") }
+                        TextButton(onClick = { edit(profile.copy(segments = profile.segments - segment)) },
+                            enabled = !saving) { Text("Remove") }
+                    }
+                }
+            }
+        }
+    }
+    Button(onClick = { openSegment(StationSegment(name = "")) },
+        enabled = !saving && profile.segments.size - 2 < (profile.minutes / 3).coerceAtMost(20)) { Text("+ Add Segment") }
+    Button(onClick = saveLineup, enabled = !saving) { Text("Save lineup") }
+}
+
+@Composable
+private fun EditSegment(segment: StationSegment, pinned: Boolean, saving: Boolean,
+    update: (StationSegment) -> Unit, onSave: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val latestProfile by rememberUpdatedState(profile)
+    val latestSegment by rememberUpdatedState(segment)
     var target by rememberSaveable { mutableStateOf<String?>(null) }
     var importing by remember { mutableStateOf(false) }
     var feedback by remember { mutableStateOf<String?>(null) }
@@ -192,10 +278,7 @@ private fun SegmentEditor(profile: StationProfile, edit: (StationProfile) -> Uni
 
     fun applyCue(segmentId: String, cue: String?) {
         stopPreview(segmentId)
-        val current = latestProfile
-        edit(current.copy(segments = current.segments.map {
-            if (it.id == segmentId) it.copy(cue = cue) else it
-        }))
+        if (latestSegment.id == segmentId) update(latestSegment.copy(cue = cue))
     }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -219,106 +302,75 @@ private fun SegmentEditor(profile: StationProfile, edit: (StationProfile) -> Uni
     }
     DisposableEffect(preview) { onDispose { preview.stop() } }
 
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        FilterChip(!profile.random, { edit(profile.copy(random = false)) }, label = { Text("Fixed order") })
-        FilterChip(profile.random, { edit(profile.copy(random = true)) }, label = { Text("Random order") })
-    }
     feedback?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-    profile.segments.forEachIndexed { index, segment ->
-        key(segment.id) {
-            val custom = index in 1 until profile.segments.lastIndex
-            fun update(replacement: StationSegment) {
-                edit(profile.copy(segments = profile.segments.toMutableList().apply { set(index, replacement) }))
-            }
-            fun move(destination: Int) {
-                edit(profile.copy(segments = profile.segments.toMutableList().apply {
-                    add(destination, removeAt(index))
-                }))
-            }
-            ElevatedCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(when (index) {
-                        0 -> "Opening"
-                        profile.segments.lastIndex -> "Closing"
-                        else -> "Segment"
-                    }, style = MaterialTheme.typography.titleMedium)
-                    OutlinedTextField(segment.name, { update(segment.copy(name = it)) },
-                        label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    var weightText by rememberSaveable(segment.id) { mutableStateOf(segment.weight.toString()) }
-                    OutlinedTextField(weightText, {
-                        weightText = it
-                        val parsed = it.replace(',', '.').toDoubleOrNull()
-                        update(segment.copy(weight = parsed?.takeIf { value -> value.isFinite() } ?: 0.0))
-                    }, label = { Text("Relative airtime (×)") }, singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        modifier = Modifier.fillMaxWidth())
-                    if (custom) {
-                        Row {
-                            TextButton(onClick = { move(index - 1) }, enabled = index > 1) { Text("Move up") }
-                            TextButton(onClick = { move(index + 1) },
-                                enabled = index < profile.segments.lastIndex - 1) { Text("Move down") }
-                            TextButton(onClick = {
-                                stopPreview(segment.id)
-                                edit(profile.copy(segments = profile.segments - segment))
-                            }, enabled = !importing) { Text("Remove") }
-                        }
-                    }
-                    val cue = segment.cue
-                    Text(when {
-                        cue == null -> "No sound bite"
-                        cue.startsWith("file:") -> "Imported sound bite"
-                        else -> cue.removePrefix("bundled:").replaceFirstChar { it.uppercase() }
-                    })
-                    var bundled by remember { mutableStateOf(false) }
-                    Box {
-                        TextButton(onClick = { bundled = true }, enabled = !importing) { Text("Choose bundled cue") }
-                        DropdownMenu(bundled, { bundled = false }) {
-                            bundledCues.forEach { name ->
-                                DropdownMenuItem(text = { Text(name.replaceFirstChar { it.uppercase() }) }, onClick = {
-                                    bundled = false
-                                    applyCue(segment.id, "bundled:$name")
-                                })
-                            }
-                        }
-                    }
-                    TextButton(onClick = { target = segment.id; picker.launch(arrayOf("audio/*")) },
-                        enabled = !importing) { Text("Import audio") }
-                    if (cue != null) {
-                        Row {
-                            TextButton(onClick = {
-                                feedback = null
-                                preview.stop()
-                                if (playingCue == segment.id) {
-                                    playingCue = null
-                                } else {
-                                    playingCue = segment.id
-                                    preview.play({
-                                        if (cue.startsWith("file:")) {
-                                            setDataSource(importedCueFile(context, cue).absolutePath)
-                                        } else {
-                                            context.assets.openFd("station-cues/${cue.removePrefix("bundled:")}.mp3").use {
-                                                setDataSource(it.fileDescriptor, it.startOffset, it.length)
-                                            }
-                                        }
-                                    }, finished = { playingCue = null }, failed = {
-                                        playingCue = null
-                                        feedback = "Could not play this sound bite."
-                                    })
-                                }
-                            }) { Text(if (playingCue == segment.id) "Stop preview" else "Preview") }
-                            TextButton(onClick = { applyCue(segment.id, null) }, enabled = !importing) { Text("Detach") }
-                        }
-                    }
-                }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(if (pinned) "Always enabled" else "Enabled", Modifier.weight(1f))
+        Switch(checked = segment.enabled, enabled = !pinned && !saving,
+            onCheckedChange = { update(segment.copy(enabled = it)) })
+    }
+    OutlinedTextField(segment.instructions, { update(segment.copy(instructions = it)) },
+        label = { Text("Content instructions") }, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(segment.name, { update(segment.copy(name = it)) },
+        label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    var weightText by rememberSaveable(segment.id) { mutableStateOf(segment.weight.toString()) }
+    OutlinedTextField(weightText, {
+        weightText = it
+        val parsed = it.replace(',', '.').toDoubleOrNull()
+        update(segment.copy(weight = parsed?.takeIf { value -> value.isFinite() } ?: 0.0))
+    }, label = { Text("Relative airtime (×)") }, singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        modifier = Modifier.fillMaxWidth())
+    val cue = segment.cue
+    Text(when {
+        cue == null -> "No sound bite"
+        cue.startsWith("file:") -> "Imported sound bite"
+        else -> cue.removePrefix("bundled:").replaceFirstChar { it.uppercase() }
+    })
+    var bundled by remember { mutableStateOf(false) }
+    Box {
+        TextButton(onClick = { bundled = true }, enabled = !importing) { Text("Choose bundled cue") }
+        DropdownMenu(bundled, { bundled = false }) {
+            bundledCues.forEach { name ->
+                DropdownMenuItem(text = { Text(name.replaceFirstChar { it.uppercase() }) }, onClick = {
+                    bundled = false
+                    applyCue(segment.id, "bundled:$name")
+                })
             }
         }
     }
-    Button(onClick = {
-        edit(profile.copy(segments = profile.segments.toMutableList().apply {
-            add(lastIndex, StationSegment(name = ""))
-        }))
-    }, enabled = profile.segments.size - 2 < profile.minutes / 3) { Text("+ Add Segment") }
-    Button(onClick = saveLineup, enabled = !saving && !importing) { Text("Save lineup") }
+    TextButton(onClick = { target = segment.id; picker.launch(arrayOf("audio/*")) },
+        enabled = !importing) { Text("Import audio") }
+    if (cue != null) {
+        Row {
+            TextButton(onClick = {
+                feedback = null
+                preview.stop()
+                if (playingCue == segment.id) {
+                    playingCue = null
+                } else {
+                    playingCue = segment.id
+                    preview.play({
+                        if (cue.startsWith("file:")) {
+                            setDataSource(importedCueFile(context, cue).absolutePath)
+                        } else {
+                            context.assets.openFd("station-cues/${cue.removePrefix("bundled:")}.mp3").use {
+                                setDataSource(it.fileDescriptor, it.startOffset, it.length)
+                            }
+                        }
+                    }, finished = { playingCue = null }, failed = {
+                        playingCue = null
+                        feedback = "Could not play this sound bite."
+                    })
+                }
+            }) { Text(if (playingCue == segment.id) "Stop preview" else "Preview") }
+            TextButton(onClick = { applyCue(segment.id, null) }, enabled = !importing) { Text("Detach") }
+        }
+    }
+    OutlinedButton(onClick = {}, enabled = false) { Text("Reporter") }
+    OutlinedButton(onClick = {}, enabled = false) { Text("Preferred sources") }
+    Button(onClick = onSave, enabled = !saving && !importing && segment.name.isNotBlank() && segment.weight > 0) {
+        Text("Save segment")
+    }
 }
 
 private class CuePreview {

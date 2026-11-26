@@ -20,8 +20,21 @@ internal data class StationSegment(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
     val weight: Double = 1.0,
-    val cue: String? = null
-)
+    val cue: String? = null,
+    val enabled: Boolean = true,
+    val instructions: String = ""
+) {
+    fun json() = JSONObject().put("id", id).put("name", name).put("weight", weight)
+        .put("cue", cue ?: JSONObject.NULL).put("enabled", enabled).put("instructions", instructions)
+
+    companion object {
+        fun from(json: JSONObject) = StationSegment(
+            id = json.getString("id"), name = json.getString("name"), weight = json.getDouble("weight"),
+            cue = json.optString("cue").takeUnless { json.isNull("cue") },
+            enabled = json.optBoolean("enabled", true), instructions = json.optString("instructions")
+        )
+    }
+}
 
 internal data class StationProfile(
     val id: String = UUID.randomUUID().toString(),
@@ -38,10 +51,19 @@ internal data class StationProfile(
         segments = segments.map { it.copy(id = UUID.randomUUID().toString()) }
     )
 
+    fun withSegment(segment: StationSegment): StationProfile {
+        val updated = segments.toMutableList()
+        val index = updated.indexOfFirst { it.id == segment.id }
+        if (index < 0) updated.add(updated.lastIndex, segment) else updated[index] = segment
+        return copy(segments = updated)
+    }
+
     fun validationError(): String? = when {
         name.isBlank() -> "Enter a station name."
         minutes !in 5..60 -> "Enter a duration from 5 to 60 minutes."
         segments.size - 2 > minutes / 3 -> "This duration allows up to ${minutes / 3} custom segments."
+        segments.size < 2 || !segments.first().enabled || !segments.last().enabled ->
+            "Opening and Closing must stay enabled."
         segments.any { it.name.isBlank() } -> "Give every segment a name."
         segments.any { !it.weight.isFinite() || it.weight <= 0 } -> "Give every segment a positive relative airtime."
         else -> null
@@ -51,13 +73,12 @@ internal data class StationProfile(
         .put("icon", icon).put("instructions", instructions)
         .put("mode", mode.name).put("random", random).put("segments", JSONArray().apply {
             segments.forEachIndexed { index, segment ->
-                put(JSONObject().put("id", segment.id).put("name", segment.name)
+                put(segment.json()
                     .put("role", when (index) {
                         0 -> "opening"
                         segments.lastIndex -> "closing"
                         else -> "custom"
-                    })
-                    .put("weight", segment.weight).put("cue", segment.cue ?: JSONObject.NULL))
+                    }))
             }
         })
 
@@ -72,9 +93,7 @@ internal data class StationProfile(
             return StationProfile(json.getString("id"), json.getString("name"), json.getInt("minutes"),
                 StationMode.valueOf(json.getString("mode")), json.getBoolean("random"),
                 List(segments.length()) { index ->
-                    val segment = segments.getJSONObject(index)
-                    StationSegment(segment.getString("id"), segment.getString("name"),
-                        segment.getDouble("weight"), segment.optString("cue").takeUnless { segment.isNull("cue") })
+                    StationSegment.from(segments.getJSONObject(index))
                 }, json.optString("icon", "◉"), json.optString("instructions"))
         }
     }
@@ -112,6 +131,13 @@ internal abstract class StationDao {
     abstract suspend fun mark(id: String, revision: Long, status: String)
 
     @Transaction
+    open suspend fun saveSegment(profile: StationProfile, segment: StationSegment): StationProfile {
+        val committed = (find(profile.id)?.decode() ?: profile).withSegment(segment)
+        save(committed)
+        return committed
+    }
+
+    @Transaction
     open suspend fun saveLineup(draft: StationProfile) {
         val saved = find(draft.id)?.decode() ?: draft
         save(saved.copy(segments = draft.segments, random = draft.random))
@@ -119,7 +145,7 @@ internal abstract class StationDao {
 
     @Transaction
     open suspend fun save(profile: StationProfile) {
-        require(profile.validationError() == null)
+        profile.validationError()?.let { throw IllegalArgumentException(it) }
         put(StationRecord(profile.id, profile.name, profile.json().toString(),
             (revision(profile.id) ?: 0) + 1, "Backup pending"))
     }

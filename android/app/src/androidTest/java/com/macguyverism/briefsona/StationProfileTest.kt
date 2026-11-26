@@ -78,6 +78,34 @@ class StationProfileTest {
         assertEquals("Backup pending", record.backup)
     }
 
+    @Test fun segmentSavePersistsOnlyTheSelectedSegmentAndQueuesBackup() = runBlocking {
+        val dao = database.stations()
+        val original = StationProfile(name = "Local")
+        dao.save(original)
+        val unsaved = original.copy(name = "Uncommitted name", random = true)
+        val traffic = StationSegment(name = "Traffic", weight = 1.5, enabled = false,
+            instructions = "Cover bridge closures.")
+        dao.saveSegment(unsaved, traffic)
+        val reopened = dao.find(original.id)!!.decode()
+        assertEquals(original.withSegment(traffic), reopened)
+        assertEquals(traffic, reopened.segments[1])
+        assertEquals(1, reopened.segments.count { !it.enabled })
+        val renamed = traffic.copy(name = "Roads")
+        dao.saveSegment(unsaved, renamed)
+        assertEquals(original.withSegment(renamed), dao.pending().single().decode())
+        val legacy = original.json()
+        legacy.getJSONArray("segments").getJSONObject(0).apply {
+            remove("enabled")
+            remove("instructions")
+            put("weight", 1)
+        }
+        assertEquals(original, StationProfile.from(legacy))
+        for (endpoint in listOf(original.segments.first(), original.segments.last())) {
+            val invalid = reopened.withSegment(endpoint.copy(enabled = false))
+            assertNotNull(invalid.validationError())
+        }
+    }
+
     @Test fun importingAudioPreservesClipBytes() = runBlocking {
         val context = compose.activity.applicationContext
         val input = File.createTempFile("cue", ".mp3", context.cacheDir)
