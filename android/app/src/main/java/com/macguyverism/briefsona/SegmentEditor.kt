@@ -2,10 +2,8 @@ package com.macguyverism.briefsona
 
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -15,7 +13,6 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
 
@@ -135,7 +132,7 @@ internal fun EditSegment(segment: StationSegment, profile: StationProfile, pinne
     val automatic = fixed == null
     Panel {
         OutlinedTextField(segment.name, { update(segment.copy(name = it)) }, enabled = !saving,
-            label = { Text("Segment name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            label = { RequiredNameLabel("Segment name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(if (pinned) "Always enabled" else "Enabled", Modifier.weight(1f))
             Switch(checked = segment.enabled, enabled = !pinned && !saving,
@@ -145,7 +142,6 @@ internal fun EditSegment(segment: StationSegment, profile: StationProfile, pinne
         TextButton(onClick = {}, enabled = false) { Text("Reporter") }
         OutlinedTextField(segment.instructions, { update(segment.copy(instructions = it)) }, enabled = !saving,
             label = { Text("Content instructions") }, minLines = 3, modifier = Modifier.fillMaxWidth())
-        Text("Approximate time", style = MaterialTheme.typography.titleMedium)
         if (!pinned) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(automatic, { update(segment.copy(durationSeconds = null)) },
@@ -155,26 +151,17 @@ internal fun EditSegment(segment: StationSegment, profile: StationProfile, pinne
             }
         }
         if (fixed != null) {
-            var minutes by rememberSaveable(segment.id) { mutableStateOf((fixed / 60).toString()) }
-            var seconds by rememberSaveable(segment.id) { mutableStateOf((fixed % 60).toString().padStart(2, '0')) }
-            fun change(m: String, s: String) {
-                minutes = m
-                seconds = s
-                val total = (m.toIntOrNull() ?: 0) * 60 + (s.toIntOrNull() ?: 0)
-                update(segment.copy(durationSeconds = if ((s.toIntOrNull() ?: 0) < 60) total else 0))
+            val maximum = if (segment.enabled) {
+                (fixed + budget.remaining - budget.automaticCount).coerceIn(1, 3600)
+            } else {
+                (profile.minutes * 60).coerceIn(1, 3600)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(minutes, { if (it.length <= 2 && it.all(Char::isDigit)) change(it, seconds) },
-                    label = { Text("Minutes") }, enabled = !saving, singleLine = true, modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(seconds, { if (it.length <= 2 && it.all(Char::isDigit)) change(minutes, it) },
-                    label = { Text("Seconds") }, enabled = !saving, singleLine = true, modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            DurationSlider("Approximate time", fixed, 1..maximum, 0, !saving && maximum > 1,
+                format = ::durationText) { seconds ->
+                update(segment.copy(durationSeconds = seconds.coerceAtMost(maximum)))
             }
-            if (fixed !in 1..3600) Text("Use 0–59 seconds and a total time from 0:01 to 60:00.",
-                color = MaterialTheme.colorScheme.error)
         } else if (segment.enabled) {
-            Text("Estimated time · ${durationText(estimate)}")
+            Text("Approximate time · ${durationText(estimate)}")
         }
         TimeRemaining(budget)
         HorizontalDivider()

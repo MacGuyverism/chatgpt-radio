@@ -40,7 +40,7 @@ class StationProfileTest {
             target.performScrollTo().performSemanticsAction(SemanticsActions.SetProgress) { it(minutes.toFloat()) }
             target.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "$minutes minutes"))
         }
-        compose.onNodeWithText("Station name").performScrollTo().performTextInput(name)
+        compose.onNodeWithText("Station name *").performScrollTo().performTextInput(name)
         compose.onNodeWithText("Schedule · Manual").performScrollTo().performClick()
         compose.onNodeWithText("Produce broadcast now").assertIsNotEnabled()
         compose.onNodeWithText("Retry production").assertIsNotEnabled()

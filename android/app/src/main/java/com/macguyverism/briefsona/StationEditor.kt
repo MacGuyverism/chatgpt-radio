@@ -163,7 +163,7 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
     if (editingSegments && !soundBitesOpen) {
         Box(Modifier.fillMaxWidth()) {
             IconButton(onClick = ::goBack, enabled = !saving, modifier = Modifier.align(Alignment.CenterStart)
-                .semantics { contentDescription = backLabel }) { Text("←") }
+                .semantics { contentDescription = backLabel }) { Text("←", color = MaterialTheme.colorScheme.primary) }
             Text(heading.uppercase(), Modifier.align(Alignment.Center), color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold, letterSpacing = 2.sp, style = MaterialTheme.typography.titleLarge)
             if (segment == null && lineup != null) {
@@ -175,7 +175,12 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
             }
         }
     } else {
-        TextButton(onClick = ::goBack, enabled = !saving) { Text(backLabel) }
+        TextButton(onClick = ::goBack, enabled = !saving) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("←", color = MaterialTheme.colorScheme.primary)
+                Text(backLabel)
+            }
+        }
         Text(heading, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             style = MaterialTheme.typography.headlineSmall)
     }
@@ -300,29 +305,15 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
         return
     }
 
-    OutlinedTextField(draft.name, { edit(draft.copy(name = it)) }, label = { Text("Station name") },
+    OutlinedTextField(draft.name, { edit(draft.copy(name = it)) }, label = { RequiredNameLabel("Station name") },
         singleLine = true, modifier = Modifier.fillMaxWidth(), enabled = !saving)
     OutlinedTextField(draft.icon, { edit(draft.copy(icon = it)) }, label = { Text("Station icon") },
         singleLine = true, enabled = !saving)
     OutlinedTextField(draft.instructions, { edit(draft.copy(instructions = it)) },
         label = { Text("Station-wide broadcast instructions") }, modifier = Modifier.fillMaxWidth(), enabled = !saving)
-    Column(Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Target duration", Modifier.weight(1f))
-            Text("${draft.minutes} minutes", color = MaterialTheme.colorScheme.primary)
-        }
-        Slider(value = draft.minutes.toFloat(), onValueChange = { value ->
-            val minutes = value.roundToInt()
-            if (minutes != draft.minutes) edit(draft.copy(minutes = minutes))
-        }, valueRange = 5f..60f, steps = 54, enabled = !saving,
-            modifier = Modifier.fillMaxWidth().semantics {
-                contentDescription = "Target duration"
-                stateDescription = "${draft.minutes} minutes"
-            })
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("5 min", style = MaterialTheme.typography.bodySmall)
-            Text("60 min", style = MaterialTheme.typography.bodySmall)
-        }
+    DurationSlider("Target duration", draft.minutes, 5..60, 54, !saving,
+        format = { "$it minutes" }, formatEndpoint = { "$it min" }) { minutes ->
+        if (minutes != draft.minutes) edit(draft.copy(minutes = minutes))
     }
     OutlinedButton(onClick = { scheduleMode = draft.mode; error = null },
         modifier = Modifier.fillMaxWidth(), enabled = !saving) {
@@ -498,6 +489,48 @@ private class CuePreview {
         } catch (_: Exception) {
             stop()
             failed()
+        }
+    }
+}
+
+
+@Composable
+internal fun RequiredNameLabel(label: String) {
+    val highlight = MaterialTheme.colorScheme.primary
+    Text(androidx.compose.ui.text.buildAnnotatedString {
+        append(label)
+        append(" ")
+        pushStyle(androidx.compose.ui.text.SpanStyle(color = highlight))
+        append("*")
+        pop()
+    })
+}
+
+@Composable
+internal fun DurationSlider(
+    label: String,
+    value: Int,
+    range: IntRange,
+    steps: Int,
+    enabled: Boolean,
+    format: (Int) -> String,
+    formatEndpoint: (Int) -> String = format,
+    onChange: (Int) -> Unit
+) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, Modifier.weight(1f))
+            Text(format(value), color = MaterialTheme.colorScheme.primary)
+        }
+        Slider(value = value.toFloat(), onValueChange = { onChange(it.roundToInt()) },
+            valueRange = range.first.toFloat()..maxOf(range.last, range.first + 1).toFloat(), steps = steps, enabled = enabled,
+            modifier = Modifier.fillMaxWidth().semantics {
+                contentDescription = label
+                stateDescription = format(value)
+            })
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(formatEndpoint(range.first), style = MaterialTheme.typography.bodySmall)
+            Text(formatEndpoint(range.last), style = MaterialTheme.typography.bodySmall)
         }
     }
 }
