@@ -1,0 +1,10 @@
+Prior license review; audio identity not independently verified.
+
+Segments/breaking_news_radio_jingle.mp3 | Thejack288 | CC0-1.0 | https://freesound.org/s/156060/ | https://creativecommons.org/publicdomain/zero/1.0/ | source listing matched by filename; not audio fingerprint verified
+Intros/cheesy_morning_news_tune.mp3 | Tuben | CC0-1.0 | https://freesound.org/s/272044/ | https://creativecommons.org/publicdomain/zero/1.0/ | source listing matched by filename; not audio fingerprint verified
+Segments/mini_news_jingle.mp3 | code_box | CC0-1.0 | https://freesound.org/s/670625/ | https://creativecommons.org/publicdomain/zero/1.0/ | source listing matched by filename; not audio fingerprint verified
+Intros/news_music.mp3 | Squidems | CC0-1.0 | https://freesound.org/s/709973/ | https://creativecommons.org/publicdomain/zero/1.0/ | source listing matched by filename; not audio fingerprint verified
+Outros/minimalist_news_transition.mp3 | xkeril | CC0-1.0 | https://freesound.org/s/827121/ | https://creativecommons.org/publicdomain/zero/1.0/ | source listing matched by filename; not audio fingerprint verified
+Segments/breaking_alert_news_intro_01.mp3 | SFXMint | CC0-1.0 | https://sfxmint.com/sounds/news-intro | https://sfxmint.com/license | public catalog CC0; filename match only; exact audio not verified
+Outros/pulsing_electronic_news_intro_04.mp3 | SFXMint | CC0-1.0 | https://sfxmint.com/sounds/news-intro | https://sfxmint.com/license | public catalog CC0; filename match only; exact audio not verified
+Segments/breaking_news_intro_05.mp3 | SFXMint | CC0-1.0 | https://sfxmint.com/sounds/news-intro | https://sfxmint.com/license | public catalog CC0; filename match only; exact audio not verified

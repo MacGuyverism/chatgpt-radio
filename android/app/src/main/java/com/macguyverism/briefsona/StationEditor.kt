@@ -388,17 +388,20 @@ private fun EditSegment(segment: StationSegment, pinned: Boolean, saving: Boolea
     Text(when {
         cue == null -> "No sound bite"
         cue.startsWith("file:") -> "Imported sound bite"
-        else -> cue.removePrefix("bundled:").replaceFirstChar { it.uppercase() }
+        else -> bundledCueTitle(cue.removePrefix("bundled:"))
     })
     var bundled by remember { mutableStateOf(false) }
     Box {
         TextButton(onClick = { bundled = true }, enabled = !importing) { Text("Choose bundled cue") }
         DropdownMenu(bundled, { bundled = false }) {
-            bundledCues.forEach { name ->
-                DropdownMenuItem(text = { Text(name.replaceFirstChar { it.uppercase() }) }, onClick = {
-                    bundled = false
-                    applyCue(segment.id, "bundled:$name")
-                })
+            bundledCueGroups.forEach { (group, cues) ->
+                DropdownMenuItem(text = { Text(group) }, onClick = {}, enabled = false)
+                cues.forEach { id ->
+                    DropdownMenuItem(text = { Text(bundledCueTitle(id)) }, onClick = {
+                        bundled = false
+                        applyCue(segment.id, "bundled:$id")
+                    })
+                }
             }
         }
     }

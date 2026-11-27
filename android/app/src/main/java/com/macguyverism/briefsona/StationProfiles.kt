@@ -178,7 +178,16 @@ internal abstract class StationDatabase : RoomDatabase() {
     }
 }
 
-internal val bundledCues = listOf("intro", "international", "national", "local", "finance", "detour", "outro")
+internal val bundledCueGroups = linkedMapOf(
+    "Intros" to listOf("cheesy_morning_news_tune", "news_music"),
+    "Segments" to listOf("breaking_news_radio_jingle", "mini_news_jingle", "breaking_alert_news_intro_01", "breaking_news_intro_05"),
+    "Outros" to listOf("minimalist_news_transition", "pulsing_electronic_news_intro_04"),
+    "Existing cues" to listOf("intro", "international", "national", "local", "finance", "detour", "outro")
+)
+internal val bundledCues = bundledCueGroups.values.flatten()
+
+internal fun bundledCueTitle(id: String): String =
+    id.split('_').joinToString(" ") { word -> word.replaceFirstChar { it.uppercase() } }
 
 internal fun importedCueFile(context: Context, cue: String): File =
     File(File(context.filesDir, "station-cues"), UUID.fromString(cue.removePrefix("file:")).toString())
