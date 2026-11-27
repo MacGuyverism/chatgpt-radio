@@ -22,3 +22,8 @@ A separate live retrieval check returned 40 articles through preferred feeds, 27
 
 The Actions APK embeds the public HTTPS Supabase project origin. Locally built APKs can supply it through BRIEFSONA_PROJECT_URL at build time or through Settings on the device.
 
+## Station backup setup
+
+Use a separate Supabase project for feature-branch backup testing. Enable anonymous sign-ins and apply the SQL migration under `supabase/migrations/`. Set `BRIEFSONA_BACKUP_URL` and `BRIEFSONA_BACKUP_PUBLISHABLE_KEY` as repository variables for Android CI or environment variables for a local build. Use the project's public `sb_publishable_` key. The broadcast project origin continues to use `BRIEFSONA_PROJECT_URL`. With no backup configuration, station edits remain available on-device and show **Backup setup required**.
+
+Station backups store profile revisions and their imported sound bites under the installation's anonymous user ID. The private bucket and profile table are separate from the broadcast archive. Clearing app data removes the installation's credentials. Account linking and recovery are future work.
