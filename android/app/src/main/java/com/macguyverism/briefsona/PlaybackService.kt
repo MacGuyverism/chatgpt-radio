@@ -68,6 +68,7 @@ class PlaybackService : MediaSessionService() {
 
             override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo,
                 newPosition: Player.PositionInfo, reason: Int) {
+                updateChapterMetadata()
                 oldPosition.mediaItem?.mediaId?.let { id ->
                     save(id, if (id == newPosition.mediaItem?.mediaId) newPosition.positionMs else oldPosition.positionMs)
                 }
@@ -81,9 +82,22 @@ class PlaybackService : MediaSessionService() {
             while (true) {
                 delay(2_000)
                 lastPosition = player.currentPosition
+                updateChapterMetadata()
                 if (player.isPlaying) checkpoint()
             }
         }
+    }
+
+    private fun updateChapterMetadata() {
+        val item = player.currentMediaItem ?: return
+        val metadata = item.mediaMetadata
+        val starts = metadata.extras?.getLongArray("chapter_starts") ?: return
+        val titles = metadata.extras?.getStringArray("chapter_titles") ?: return
+        if (starts.isEmpty()) return
+        val title = titles.getOrNull(chapterIndex(starts.toList(), player.currentPosition)) ?: return
+        if (metadata.title == title) return
+        player.replaceMediaItem(player.currentMediaItemIndex, item.buildUpon()
+            .setMediaMetadata(metadata.buildUpon().setTitle(title).setDisplayTitle(title).build()).build())
     }
 
     private fun jump(direction: Int) {
@@ -126,8 +140,12 @@ class PlaybackService : MediaSessionService() {
         fun metadata(segments: List<Chapter>) =
             androidx.media3.common.MediaMetadata.Builder()
                 .setTitle("Morning Edition")
+                .setAlbumTitle("Morning Edition")
                 .setArtist("Briefsona")
-                .setExtras(Bundle().apply { putLongArray("chapter_starts", segments.map { it.start }.toLongArray()) })
+                .setExtras(Bundle().apply {
+                    putLongArray("chapter_starts", segments.map { it.start }.toLongArray())
+                    putStringArray("chapter_titles", segments.map { it.title }.toTypedArray())
+                })
                 .build()
     }
 }

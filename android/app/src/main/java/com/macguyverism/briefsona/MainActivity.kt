@@ -16,6 +16,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -382,7 +383,23 @@ private fun Radio(
                 }
                 BoxWithConstraints {
                     val width = maxWidth * .43f
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val scroll = rememberScrollState()
+                    val centeredOffset = with(LocalDensity.current) {
+                        ((width + 8.dp) * index - (maxWidth - width) / 2).roundToPx()
+                    }
+                    LaunchedEffect(episode?.id, segments, index, centeredOffset) {
+                        snapshotFlow { scroll.maxValue }.collect { limit ->
+                            if (limit != Int.MAX_VALUE) {
+                                val target = when (index) {
+                                    0 -> 0
+                                    segments.lastIndex -> limit
+                                    else -> centeredOffset.coerceIn(0, limit)
+                                }
+                                scroll.animateScrollTo(target)
+                            }
+                        }
+                    }
+                    Row(Modifier.horizontalScroll(scroll), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         segments.forEachIndexed { i, segment ->
                             val selected = i == index
                             Column(Modifier.width(width).heightIn(min = 64.dp)
@@ -539,9 +556,8 @@ private fun Settings(prefs: Preferences, episodes: List<Episode>,
     Panel {
         Text("Downloads", fontWeight = FontWeight.Bold)
         Toggle("Automatic download", prefs[Prefs.auto] ?: true) { value -> save { it[Prefs.auto] = value } }
-        Toggle("Wi-Fi only (unmetered)", prefs[Prefs.wifi] ?: false) { value -> save { it[Prefs.wifi] = value } }
+        Toggle("Download by Wi-Fi only", prefs[Prefs.wifi] ?: false) { value -> save { it[Prefs.wifi] = value } }
         SettingValue("Local retention", "${prefs[Prefs.retention] ?: 7} days", action = { details = "Local retention" })
-        SettingValue("Cloud retention", "7 days")
     }
     Panel {
         Text("Storage", fontWeight = FontWeight.Bold)
