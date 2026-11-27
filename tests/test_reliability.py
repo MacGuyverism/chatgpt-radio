@@ -156,6 +156,40 @@ class AudioTest(unittest.TestCase):
             self.assertEqual(metadata["chapters"][0]["start_ms"], 0)
             self.assertEqual(metadata["chapters"][-1]["end_ms"], metadata["duration_ms"])
 
+    def test_profile_run_uses_one_order_for_script_audio_and_chapters(self):
+        profile = {"instructions": "Explain how the news affects daily travel.", "segments": [
+            {"name": "Intro"}, {"name": "Traffic", "random_position": True},
+            {"name": "Daily Detour"}, {"name": "Weather", "random_position": True}, {"name": "Outro"},
+        ]}
+        expected = ["Intro", "Weather", "Daily Detour", "Traffic", "Outro"]
+        with tempfile.TemporaryDirectory() as tmp:
+            tone = subprocess.check_output([
+                "ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=440:duration=1",
+                "-ar", "24000", "-ac", "1", "-codec:a", "libmp3lame", "-f", "mp3", "-"
+            ])
+            spoken = []
+            replies = iter(row["name"] for row in profile["segments"])
+
+            def ai(endpoint, payload):
+                if endpoint == "audio/speech":
+                    spoken.append(payload["input"])
+                    return tone
+                self.assertIn(profile["instructions"], payload["messages"][-1]["content"])
+                return json.dumps({"choices": [{"message": {"content": next(replies)}}]}).encode()
+
+            with patch.object(radio_production, "ai", side_effect=ai), \
+                 patch.object(radio_production.random, "shuffle", side_effect=list.reverse) as draw, \
+                 patch.object(radio_production, "collect_feeds", return_value=[]), \
+                 patch.object(radio_production, "enrich_articles", return_value=[{
+                     "category": "National", "title": "Transit report", "url": "https://example.org/story",
+                     "article": "The council announced an update."
+                 }]), patch.dict(os.environ, {"RADIO_BUILD_DIR": tmp, "RADIO_STATION_PROFILE": json.dumps(profile)}):
+                audio, _ = radio_production.produce(dt.date(2025, 3, 9))
+            draw.assert_called_once()
+            self.assertEqual((Path(tmp) / "script.txt").read_text().split("\n\n"), expected)
+            self.assertEqual(spoken, expected)
+            self.assertEqual([chapter["title"] for chapter in validate_chapters(audio)["chapters"]], expected)
+
 
 if __name__ == "__main__":
     unittest.main()
