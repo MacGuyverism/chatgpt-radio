@@ -127,10 +127,16 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
                         if (loaded) Text(summary, color = if (summary == "Ready") green else colors.primary)
                     }
                     if (loaded) {
+                        if (profile.name != StationProfile.morningCommute.name) {
+                            Text("Morning Commute broadcast feed", color = colors.onSurfaceVariant)
+                        }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("✓  Currently loaded", Modifier.weight(1f))
-                            TextButton(onClick = loadStation, enabled = playable) { Text("Load station") }
+                            TextButton(onClick = loadStation, enabled = playable) { Text("Open Radio") }
                         }
+                    }
+                    if (!loaded) {
+                        Text("No broadcasts for this station yet", color = colors.onSurfaceVariant)
                     }
                     records.firstOrNull { it.id == profile.id }?.let { Text(it.backup, style = MaterialTheme.typography.bodySmall) }
                 }

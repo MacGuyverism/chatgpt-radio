@@ -9,7 +9,7 @@ Phase 2 lets users create and edit stations, configure their segment lineup, and
 
 ## Stations and Station Profile
 
-- **Stations** shows a card for each station with its icon, name, target duration, segment count, and production mode. Highlight the station currently loaded in Radio. A chevron at the far right of the name row indicates that tapping the card opens its profile. **Load station** is a separate action, available when the station has a playable edition.
+- **Stations** shows a card for each station with its icon, name, target duration, segment count, and production mode. Highlight the station currently loaded in Radio. A chevron at the far right of the name row indicates that tapping the card opens its profile. **Open Radio** is available on the station that owns the published feed when it has a playable edition. Station profiles without editions show that status on their cards.
 - The **+** in the Stations header uses the selected illumination color and is the only create-station action. Remove the duplicate **Create new station** button at the bottom.
 - **+** opens a new Station Profile in Manual mode with an editable Opening and Closing. The Profile, Segments, Schedule, and Sound bites tabs belong to that station.
 - **Station Profile** includes the station name, icon, a target-duration slider from 5 to 60 minutes in one-minute steps (default 30), and editable station-wide broadcast instructions. New stations start with guidance on what changed, why it matters, attribution, uncertainty, and avoiding repetition. **Create a copy** creates an independent profile and segment lineup. The reference also shows **Delete station**. Keep it disabled until deletion of local and backed-up data is supported.

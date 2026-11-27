@@ -183,7 +183,6 @@ private fun Briefsona() {
             }
         }) { insets ->
             BoxWithConstraints(Modifier.padding(insets).fillMaxSize()) {
-                val landscape = maxWidth >= 650.dp || maxWidth > maxHeight * 1.25f
                 val scroll = rememberScrollState()
                 Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -191,7 +190,7 @@ private fun Briefsona() {
                         letterSpacing = 3.sp, fontSize = 24.sp)
                     when (screen) {
                         "Radio" -> Radio(
-                            morning, today, visible, chosen, segmentList, displayedPosition, playing, landscape,
+                            morning, today, visible, chosen, segmentList, displayedPosition, playing,
                             controller != null, prefs[Prefs.speed] ?: 1f,
                             onSelect = ::select,
                             onPlay = {
@@ -272,7 +271,7 @@ private fun StationSelector(station: StationProfile) {
 @Composable
 private fun Radio(
     station: StationProfile, today: LocalDate, items: List<Episode>, episode: Episode?, segments: List<Chapter>, position: Long,
-    playing: Boolean, landscape: Boolean, connected: Boolean, speed: Float, onSelect: (Episode) -> Unit,
+    playing: Boolean, connected: Boolean, speed: Float, onSelect: (Episode) -> Unit,
     onPlay: () -> Unit, onSeek: (Long) -> Unit, onSpeed: () -> Unit
 ) {
     val accent = MaterialTheme.colorScheme.primary
@@ -288,6 +287,9 @@ private fun Radio(
     var dayMenu by remember { mutableStateOf<List<Episode>>(emptyList()) }
     var all by rememberSaveable { mutableStateOf(false) }
     StationSelector(station)
+    if (station.name != StationProfile.morningCommute.name) {
+        Text("Morning Commute broadcast feed", color = muted, style = MaterialTheme.typography.bodySmall)
+    }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         for (days in 6 downTo 0) {
             val date = today.minusDays(days.toLong())
@@ -414,13 +416,8 @@ private fun Radio(
             }
         }
     }
-    if (landscape) Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        Box(Modifier.weight(1f)) { display() }
-        Box(Modifier.weight(1f)) { controls() }
-    } else {
-        display()
-        controls()
-    }
+    display()
+    controls()
 }
 
 @Composable
