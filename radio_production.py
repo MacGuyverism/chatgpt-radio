@@ -107,7 +107,14 @@ def produce(day):
     No headings, bullet points, markdown or spoken URLs. Balanced, thoughtful and professional.
     If evidence is thin, keep the segment short or omit it. Do not make up new current events. Exclude all sports except verified New England Patriots standings following a completed game. Omit standings if not verified."""
 
+    instructions += (
+        " Each presenter introduces themselves only once in the entire edition. "
+        "A returning presenter goes straight into the report without another introduction or name sign-off. "
+        "Keep handoffs brief and occasional. Name an adjacent presenter only when their identity is confirmed."
+    )
     generated = []
+    heard_presenters = set()
+    previous_presenter = None
     shuffle_requested = sum(section.random_position for section in sections) > 1
     if shuffle_requested:
         instructions += (" Reports may air in a different order. Write each as a standalone segment "
@@ -134,9 +141,18 @@ def produce(day):
         if template not in ("Opening headlines", "Closing", "Daily Detour"):
             guidance += ' If none of these articles are suitable for this segment, return exactly OMIT.'
         presenter, _, style = presenters[template or "Opening headlines"]
+        introduction = (
+            "You have already appeared in this edition. Do not introduce yourself again."
+            if presenter in heard_presenters
+            else "This is your first report for this edition. Introduce yourself briefly and naturally."
+        )
+        handoff = ""
+        if not shuffle_requested and previous_presenter and previous_presenter != presenter:
+            handoff = f" You may briefly acknowledge the previous presenter, {previous_presenter}, if it flows naturally."
         prompt = ("Broadcast date " + date + ". Write ONLY the " + title +
                   " segment, up to " + str(target) + " words. Use fewer when justified. " +
-                  guidance + " Presenter: " + presenter + ". Personality: " + style + ". Introduce yourself naturally when taking over from a different presenter. Do not invent interviews or claim to be on location. Earlier segment context: " +
+                  guidance + " Presenter: " + presenter + ". Personality: " + style + ". " + introduction + handoff +
+                  " Do not invent interviews or claim to be on location. Earlier segment context: " +
                   "\n".join(x[1] for x in generated) +
                   ". Available article records: " + json.dumps(relevant))
         if station_guidance:
@@ -157,6 +173,8 @@ def produce(day):
         count = len(segment.split())
         print("Section", title, count, "words", flush=True)
         generated.append((section, segment))
+        heard_presenters.add(presenter)
+        previous_presenter = presenter
     if not any(section.template not in ("Opening headlines", "Closing", "Daily Detour") for section, _ in generated):
         raise RuntimeError("No substantive news was produced")
     generated = broadcast_order(generated)
