@@ -23,3 +23,7 @@ Development and the Android debug build are authorized on feature/article-chapte
 The approved launcher artwork features a microphone, headphones, amber globe and newspaper. The Android adaptive launcher resource uses the original Icon.png from main commit 0694700. Radio, Stations and Settings follow the supplied references. Illustrative dates, stations, segments and status values in the references are populated from the available broadcasts.
 
 A feature-branch test broadcast requires editorial review before promotion. Verify downloads, offline and background playback, Bluetooth, lock screen controls, resume, chapter navigation, retention, all 18 themes and landscape on Kayla and Jade.
+
+## Planned starter station
+
+Basic News is the built-in starter profile. Include national and world news, business, science and technology, and a short, original Daily Detour for humor between news reports. Keep the edition broadly relevant and omit local coverage. Users may edit or copy the starter profile and create their own stations.
