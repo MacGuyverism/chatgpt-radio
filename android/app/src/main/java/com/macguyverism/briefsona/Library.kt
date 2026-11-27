@@ -1,6 +1,9 @@
 package com.macguyverism.briefsona
 
 import android.content.Context
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.ConnectivityManager
 import android.media.MediaMetadataRetriever
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
@@ -118,13 +121,14 @@ abstract class Library : RoomDatabase() {
     }
 }
 
+private class WaitingForWifi : IOException()
 private class MissingObject : IOException()
 private const val MAX_AUDIO = 45L * 1024 * 1024
 
-private fun <T> read(url: String, consume: (InputStream, Long) -> T): T {
+private fun <T> read(url: String, network: Network? = null, consume: (InputStream, Long) -> T): T {
     val endpoint = URL(url)
     require(endpoint.protocol == "https" && endpoint.userInfo == null && endpoint.host.isNotBlank())
-    val connection = endpoint.openConnection() as HttpURLConnection
+    val connection = (network?.openConnection(endpoint) ?: endpoint.openConnection()) as HttpURLConnection
     connection.connectTimeout = 12_000
     connection.readTimeout = 20_000
     connection.instanceFollowRedirects = false
@@ -143,7 +147,7 @@ private fun <T> read(url: String, consume: (InputStream, Long) -> T): T {
     }
 }
 
-private fun readJson(url: String): String = read(url) { stream, _ ->
+private fun readJson(url: String, network: Network? = null): String = read(url, network) { stream, _ ->
     val buffer = ByteArray(1_048_577)
     var size = 0
     while (size < buffer.size) {
@@ -189,14 +193,16 @@ class Retrieval(context: Context, params: WorkerParameters) : CoroutineWorker(co
             Result.success()
         } catch (cancel: kotlinx.coroutines.CancellationException) {
             throw cancel
+        } catch (_: WaitingForWifi) {
+            applicationContext.settings.edit { it[Prefs.retrieval] = "Waiting for Wi-Fi" }
+            Result.retry()
         } catch (_: Exception) {
             val attempt = inputData.getInt("retry_attempt", 0)
             applicationContext.settings.edit {
                 it[Prefs.retrieval] = if (attempt < 12) "Retrieval delayed" else "Retrieval failed"
             }
             if (attempt < 12) {
-                val wifi = applicationContext.settings.data.first()[Prefs.wifi] ?: false
-                request(applicationContext, wifi, inputData.getString("episode"), 300_000,
+                request(applicationContext, inputData.getString("episode"), 300_000,
                     retryAttempt = attempt + 1, retrySeries = inputData.getString("retry_series") ?: id.toString())
             }
             Result.failure()
@@ -238,7 +244,7 @@ class Retrieval(context: Context, params: WorkerParameters) : CoroutineWorker(co
             it[Prefs.status] = status
             it[Prefs.lastSync] = System.currentTimeMillis()
         }
-        releaseDelay(status)?.let { request(context, prefs[Prefs.wifi] ?: false, delay = it) }
+        releaseDelay(status)?.let { request(context, delay = it) }
         val cutoff = LocalDate.now().minusDays((prefs[Prefs.retention] ?: 7).toLong() - 1).toString()
         for (episode in dao.all()) {
             val path = episode.local ?: continue
@@ -256,7 +262,15 @@ class Retrieval(context: Context, params: WorkerParameters) : CoroutineWorker(co
             if (manual != null && manual != episode.id) continue
             if (dao.find(episode.id)?.local?.let { File(it).isFile } == true) continue
             try {
-                download(episode, item, base, dao)
+                val network = if (context.settings.data.first()[Prefs.wifi] == true) {
+                    val manager = context.getSystemService(ConnectivityManager::class.java)
+                    manager.activeNetwork?.takeIf {
+                        manager.getNetworkCapabilities(it)?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+                    } ?: throw WaitingForWifi()
+                } else null
+                download(episode, item, base, dao, network)
+            } catch (waiting: WaitingForWifi) {
+                throw waiting
             } catch (cancel: kotlinx.coroutines.CancellationException) {
                 throw cancel
             } catch (error: Exception) {
@@ -274,10 +288,10 @@ class Retrieval(context: Context, params: WorkerParameters) : CoroutineWorker(co
         }
     }
 
-    private suspend fun download(episode: Episode, item: JSONObject, base: String, dao: LibraryDao) {
+    private suspend fun download(episode: Episode, item: JSONObject, base: String, dao: LibraryDao, network: Network?) {
         val chapterHash = item.optString("chapter_sha256")
         val chapterData = if (item.has("chapter_url")) {
-            readJson("$base/${episode.id.removeSuffix(".mp3")}.json")
+            readJson("$base/${episode.id.removeSuffix(".mp3")}.json", network)
         } else ""
         if (chapterHash.isNotBlank()) {
             require(MessageDigest.getInstance("SHA-256").digest(chapterData.toByteArray()).hex() == chapterHash)
@@ -288,7 +302,7 @@ class Retrieval(context: Context, params: WorkerParameters) : CoroutineWorker(co
         val temp = File.createTempFile("broadcast-", ".part", directory)
         try {
             val hash = item.optString("sha256")
-            read(episode.audio) { stream, length ->
+            read(episode.audio, network) { stream, length ->
                 copyVerified(stream, temp, item.optLong("bytes", length), hash)
             }
             val reader = MediaMetadataRetriever()
@@ -310,15 +324,14 @@ class Retrieval(context: Context, params: WorkerParameters) : CoroutineWorker(co
     companion object {
         private val syncLock = Mutex()
 
-        fun schedule(context: Context, wifi: Boolean) {
-            val constraints = constraints(wifi)
+        fun schedule(context: Context) {
             val work = PeriodicWorkRequestBuilder<Retrieval>(15, TimeUnit.MINUTES)
                 .setConstraints(constraints).build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork("archive-periodic",
                 ExistingPeriodicWorkPolicy.UPDATE, work)
         }
 
-        fun request(context: Context, wifi: Boolean, episode: String? = null, delay: Long = 0,
+        fun request(context: Context, episode: String? = null, delay: Long = 0,
             retryAttempt: Int = 0, retrySeries: String? = null) {
             val work = OneTimeWorkRequestBuilder<Retrieval>()
                 .setInputData(Data.Builder().apply {
@@ -326,7 +339,7 @@ class Retrieval(context: Context, params: WorkerParameters) : CoroutineWorker(co
                     if (retrySeries != null) putString("retry_series", retrySeries)
                     putInt("retry_attempt", retryAttempt)
                 }.build())
-                .setConstraints(constraints(wifi))
+                .setConstraints(constraints)
                 .setInitialDelay(delay.coerceAtLeast(0), TimeUnit.MILLISECONDS)
                 .build()
             WorkManager.getInstance(context).enqueueUniqueWork(
@@ -339,8 +352,7 @@ class Retrieval(context: Context, params: WorkerParameters) : CoroutineWorker(co
                 ExistingWorkPolicy.KEEP, work)
         }
 
-        private fun constraints(wifi: Boolean) = Constraints.Builder()
-            .setRequiredNetworkType(if (wifi) NetworkType.UNMETERED else NetworkType.CONNECTED).build()
+        private val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
     }
 }
 

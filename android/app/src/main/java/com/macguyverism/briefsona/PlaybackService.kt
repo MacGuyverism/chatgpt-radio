@@ -137,9 +137,11 @@ class PlaybackService : MediaSessionService() {
         @Volatile var activeId: String? = null
             private set
 
-        fun metadata(segments: List<Chapter>) =
-            androidx.media3.common.MediaMetadata.Builder()
-                .setTitle("Morning Edition")
+        fun metadata(segments: List<Chapter>, position: Long = 0): androidx.media3.common.MediaMetadata {
+            val title = segments.getOrNull(chapterIndex(segments.map { it.start }, position))?.title ?: "Morning Edition"
+            return androidx.media3.common.MediaMetadata.Builder()
+                .setTitle(title)
+                .setDisplayTitle(title)
                 .setAlbumTitle("Morning Edition")
                 .setArtist("Briefsona")
                 .setExtras(Bundle().apply {
@@ -147,5 +149,6 @@ class PlaybackService : MediaSessionService() {
                     putStringArray("chapter_titles", segments.map { it.title }.toTypedArray())
                 })
                 .build()
+        }
     }
 }

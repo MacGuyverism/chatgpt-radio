@@ -131,7 +131,7 @@ private fun Briefsona() {
         val manager = context.getSystemService(android.net.ConnectivityManager::class.java)
         val callback = object : android.net.ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: android.net.Network) {
-                if (endpoint != null) Retrieval.request(context, wifi)
+                if (endpoint != null) Retrieval.request(context)
             }
         }
         manager.registerDefaultNetworkCallback(callback)
@@ -139,14 +139,14 @@ private fun Briefsona() {
     }
     LaunchedEffect(endpoint, wifi, prefs[Prefs.auto], prefs[Prefs.retention]) {
         if (endpoint != null) {
-            Retrieval.schedule(context, wifi)
-            Retrieval.request(context, wifi)
+            Retrieval.schedule(context)
+            Retrieval.request(context)
         }
     }
     LaunchedEffect(Unit) { StationBackup.schedule(context) }
     LifecycleResumeEffect(endpoint, wifi) {
         if (endpoint != null && System.currentTimeMillis() - (prefs[Prefs.lastSync] ?: 0) > 300_000) {
-            Retrieval.request(context, wifi)
+            Retrieval.request(context)
         }
         onPauseOrDispose { }
     }
@@ -154,16 +154,17 @@ private fun Briefsona() {
     fun select(episode: Episode) {
         save { it[Prefs.selected] = episode.id }
         if (active?.id != episode.id && episode.local?.let { !File(it).isFile } != false) {
-            Retrieval.request(context, wifi, episode.id)
+            Retrieval.request(context, episode.id)
             return
         }
         val player = controller ?: return
         if (player.currentMediaItem?.mediaId != episode.id) {
             val file = episode.local?.let(::File)?.takeIf { it.isFile } ?: return
             val segments = runCatching { chapters(episode.chapters) }.getOrDefault(emptyList())
+            val start = resumePosition(episode.position, episode.duration, prefs[Prefs.resume] ?: true)
             val media = MediaItem.Builder().setMediaId(episode.id).setUri(Uri.fromFile(file))
-                .setMediaMetadata(PlaybackService.metadata(segments)).build()
-            player.setMediaItem(media, resumePosition(episode.position, episode.duration, prefs[Prefs.resume] ?: true))
+                .setMediaMetadata(PlaybackService.metadata(segments, start)).build()
+            player.setMediaItem(media, start)
             player.setPlaybackSpeed(prefs[Prefs.speed] ?: 1f)
             player.prepare()
             player.pause()
@@ -220,7 +221,7 @@ private fun Briefsona() {
                             StationPages(scroll, stations.value, morning, visible.isNotEmpty(),
                                 status = status,
                                 retrievePublished = if (endpoint != null && visible.any { it.remote }) {
-                                    { Retrieval.request(context, wifi, "") }
+                                    { Retrieval.request(context, "") }
                                 } else null,
                                 loadStation = {
                                 val episode = active ?: chosen ?: visible.firstOrNull()
@@ -228,7 +229,7 @@ private fun Briefsona() {
                                 screen = "Radio"
                             }) {
                                 Stations(status, visible, prefs, endpoint != null, {
-                                    Retrieval.request(context, wifi, "")
+                                    Retrieval.request(context, "")
                                 })
                             }
                         }
@@ -383,9 +384,10 @@ private fun Radio(
                 }
                 BoxWithConstraints {
                     val width = maxWidth * .43f
+                    val gap = if (segments.size == 2) maxWidth - width * 2 else 8.dp
                     val scroll = rememberScrollState()
                     val centeredOffset = with(LocalDensity.current) {
-                        ((width + 8.dp) * index - (maxWidth - width) / 2).roundToPx()
+                        ((width + gap) * index - (maxWidth - width) / 2).roundToPx()
                     }
                     LaunchedEffect(episode?.id, segments, index, centeredOffset) {
                         snapshotFlow { scroll.maxValue }.collect { limit ->
@@ -399,7 +401,7 @@ private fun Radio(
                             }
                         }
                     }
-                    Row(Modifier.horizontalScroll(scroll), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.horizontalScroll(scroll), horizontalArrangement = Arrangement.spacedBy(gap)) {
                         segments.forEachIndexed { i, segment ->
                             val selected = i == index
                             Column(Modifier.width(width).heightIn(min = 64.dp)
