@@ -1,6 +1,11 @@
 name: Produce ChatGPT Radio broadcast
 on:
   workflow_dispatch:
+    inputs:
+      station_profile:
+        description: Optional sample station profile JSON for a feature-branch test run
+        type: string
+        required: false
   schedule:
     # 06:15 Eastern: 10:15 UTC during EDT, 11:15 UTC during EST.
     - cron: '15 10 * * *'
@@ -61,6 +66,7 @@ jobs:
       - name: Produce broadcast
         if: steps.window.outputs.run == 'true'
         env:
+          RADIO_STATION_PROFILE: ${{ github.ref_name != 'main' && inputs.station_profile || '' }}
           RADIO_EVENT: ${{ github.event_name }}
           RADIO_TEST_ONLY: ${{ github.ref_name != 'main' && '1' || '0' }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

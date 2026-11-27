@@ -1,10 +1,7 @@
 package com.macguyverism.briefsona
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -48,28 +45,12 @@ internal fun SegmentLineup(profile: StationProfile, openSegment: (StationSegment
     val colors = MaterialTheme.colorScheme
     val budget = profile.airtime()
     val centers = remember { mutableMapOf<String, Float>() }
-    var orderMenu by remember { mutableStateOf(false) }
     Text(profile.name, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text("${profile.minutes} minutes · ${profile.segments.size} segments", Modifier.weight(1f))
         Text("${profile.segments.count { it.enabled }} enabled", color = green)
     }
     TimeRemaining(budget)
-    Box {
-        Row(Modifier.fillMaxWidth().background(colors.surface, RoundedCornerShape(8.dp))
-            .clickable(enabled = !saving) { orderMenu = true }.padding(14.dp)) {
-            Text("Playback order", Modifier.weight(1f))
-            Text(if (profile.random) "Random ⌄" else "Fixed ⌄", color = colors.primary)
-        }
-        DropdownMenu(orderMenu, { orderMenu = false }) {
-            for (random in listOf(false, true)) {
-                DropdownMenuItem(text = { Text(if (random) "Random" else "Fixed") }, onClick = {
-                    edit(profile.copy(random = random))
-                    orderMenu = false
-                })
-            }
-        }
-    }
     profile.segments.forEachIndexed { index, segment ->
         key(segment.id) {
             val custom = index in 1 until profile.segments.lastIndex
@@ -126,6 +107,12 @@ internal fun SegmentLineup(profile: StationProfile, openSegment: (StationSegment
                             "${durationText(estimate)} · ${if (!custom) "Pinned" else if (segment.durationSeconds == null) "Automatic" else "Set time"}",
                             style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                     }
+                    if (custom) {
+                        FilterChip(selected = segment.randomPosition, enabled = !saving,
+                            onClick = { edit(profile.withSegment(segment.copy(randomPosition = !segment.randomPosition))) },
+                            label = { Text(if (segment.randomPosition) "Random" else "Fixed") },
+                            modifier = Modifier.semantics { contentDescription = "Position for ${segment.name}" })
+                    }
                     if (segment.enabled) Text("✓", color = green)
                     Chevron()
                 }
@@ -134,7 +121,7 @@ internal fun SegmentLineup(profile: StationProfile, openSegment: (StationSegment
     }
     OutlinedButton(onClick = { openSegment(StationSegment(name = "")) }, modifier = Modifier.fillMaxWidth(),
         enabled = !saving && profile.canAddSegment) { Text("+ Add segment") }
-    Text("Hold and drag the handle to reorder, or tap it for options. Opening and Closing are pinned.",
+    Text("Drag to set the lineup. Each broadcast shuffles only the segments marked Random.",
         style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
     Button(onClick = saveLineup, modifier = Modifier.fillMaxWidth(), enabled = !saving) { Text("Save changes") }
 }

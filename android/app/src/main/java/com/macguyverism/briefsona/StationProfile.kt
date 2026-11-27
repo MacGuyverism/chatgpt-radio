@@ -15,17 +15,19 @@ internal data class StationSegment(
     val durationSeconds: Int? = null,
     val cue: String? = null,
     val enabled: Boolean = true,
-    val instructions: String = ""
+    val instructions: String = "",
+    val randomPosition: Boolean = false
 ) {
     fun json() = JSONObject().put("id", id).put("name", name).put("duration_seconds", durationSeconds ?: JSONObject.NULL)
-        .put("cue", cue ?: JSONObject.NULL).put("enabled", enabled).put("instructions", instructions)
+        .put("random_position", randomPosition).put("cue", cue ?: JSONObject.NULL).put("enabled", enabled).put("instructions", instructions)
 
     companion object {
-        fun from(json: JSONObject) = StationSegment(
+        fun from(json: JSONObject, legacyRandom: Boolean = false) = StationSegment(
             id = json.getString("id"), name = json.getString("name"),
             durationSeconds = if (json.isNull("duration_seconds")) null else json.getInt("duration_seconds"),
             cue = json.optString("cue").takeUnless { json.isNull("cue") },
-            enabled = json.optBoolean("enabled", true), instructions = json.optString("instructions")
+            enabled = json.optBoolean("enabled", true), instructions = json.optString("instructions"),
+            randomPosition = json.optBoolean("random_position", legacyRandom)
         )
     }
 }
@@ -35,7 +37,6 @@ internal data class StationProfile(
     val name: String = "",
     val minutes: Int = 30,
     val mode: StationMode = StationMode.MANUAL,
-    val random: Boolean = false,
     val segments: List<StationSegment> = listOf(StationSegment(name = "Opening"), StationSegment(name = "Closing")),
     val icon: String = "◉",
     val instructions: String = ""
@@ -85,7 +86,7 @@ internal data class StationProfile(
 
     fun json() = JSONObject().put("id", id).put("name", name).put("minutes", minutes)
         .put("icon", icon).put("instructions", instructions)
-        .put("mode", mode.name).put("random", random).put("segments", JSONArray().apply {
+        .put("mode", mode.name).put("segments", JSONArray().apply {
             segments.forEachIndexed { index, segment ->
                 put(segment.json()
                     .put("role", when (index) {
@@ -104,7 +105,11 @@ internal data class StationProfile(
 
         fun from(json: JSONObject): StationProfile {
             val rows = json.getJSONArray("segments")
-            val segments = List(rows.length()) { StationSegment.from(rows.getJSONObject(it)) }.toMutableList()
+            val segments = MutableList(rows.length()) { index ->
+                val custom = index in 1 until rows.length() - 1
+                val segment = StationSegment.from(rows.getJSONObject(index), custom && json.optBoolean("random"))
+                if (custom) segment else segment.copy(randomPosition = false)
+            }
             // Equal legacy weights map to automatic sharing. Preserve unequal custom proportions
             // as editable time estimates after reserving the two endpoint defaults.
             val legacy = (1 until segments.lastIndex).filter { !rows.getJSONObject(it).has("duration_seconds") }
@@ -128,7 +133,7 @@ internal data class StationProfile(
                 }
             }
             return StationProfile(json.getString("id"), json.getString("name"), json.getInt("minutes"),
-                StationMode.valueOf(json.getString("mode")), json.getBoolean("random"),
+                StationMode.valueOf(json.getString("mode")),
                 segments, json.optString("icon", "◉"), json.optString("instructions"))
         }
     }

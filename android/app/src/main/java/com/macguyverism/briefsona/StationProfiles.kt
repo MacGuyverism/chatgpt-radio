@@ -57,7 +57,9 @@ internal abstract class StationDao {
 
     @Transaction
     open suspend fun saveSegment(profile: StationProfile, segment: StationSegment): StationProfile {
-        val committed = (find(profile.id)?.decode() ?: profile).withSegment(segment)
+        val saved = find(profile.id)?.decode() ?: profile
+        val position = saved.segments.find { it.id == segment.id }?.randomPosition ?: segment.randomPosition
+        val committed = saved.withSegment(segment.copy(randomPosition = position))
         save(committed)
         return committed
     }
@@ -75,7 +77,7 @@ internal abstract class StationDao {
     @Transaction
     open suspend fun saveLineup(draft: StationProfile) {
         val saved = find(draft.id)?.decode() ?: draft
-        save(saved.copy(segments = draft.segments, random = draft.random))
+        save(saved.copy(segments = draft.segments))
     }
 
     @Transaction

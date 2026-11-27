@@ -276,7 +276,7 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
                 try {
                     dao.saveLineup(lineup)
                     StationBackup.request(context)
-                    edit(draft.copy(random = lineup.random, segments = lineup.segments))
+                    edit(draft.copy(segments = lineup.segments))
                     lineupJson = null
                 } catch (failure: CancellationException) {
                     throw failure

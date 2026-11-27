@@ -54,7 +54,7 @@ class StationProfileTest {
         val dao = database.stations()
         val saved = StationProfile(name = "Drive", minutes = 45, instructions = "Traffic")
         dao.save(saved)
-        val stale = saved.copy(name = "Unsaved name", minutes = 10, random = true)
+        val stale = saved.copy(name = "Unsaved name", minutes = 10)
         for ((index, mode) in listOf(StationMode.SCHEDULED, StationMode.PAUSED, StationMode.MANUAL).withIndex()) {
             dao.saveSchedule(stale, mode)
             val record = dao.pending().single()
@@ -67,17 +67,17 @@ class StationProfileTest {
         val context = compose.activity.applicationContext
         val dao = database.stations()
         val defaults = StationProfile(name = "Segment settings")
-        val first = StationSegment(name = "World", durationSeconds = 90, cue = "bundled:international")
+        val first = StationSegment(name = "World", randomPosition = true, durationSeconds = 90, cue = "bundled:international")
         val second = StationSegment(name = "Business", durationSeconds = 120, cue = "bundled:finance")
         val profile = defaults.copy(segments = listOf(
             defaults.segments.first(), second, first, defaults.segments.last()
-        ), random = true)
+        ))
         dao.save(profile)
         val reopened = dao.pending().first { it.id == profile.id }.decode()
         assertEquals(profile, reopened)
-        dao.save(reopened.copy(random = false))
+        dao.saveLineup(reopened.withSegment(first.copy(randomPosition = false)))
         val fixed = dao.pending().first { it.id == profile.id }.decode()
-        assertFalse(fixed.random)
+        assertTrue(fixed.segments.none { it.randomPosition })
         assertEquals(listOf("Opening", "Business", "World", "Closing"), fixed.segments.map { it.name })
         bundledCues.forEach { cue ->
             context.assets.openFd("station-cues/$cue.mp3").use { assertTrue(it.length > 0) }
@@ -88,10 +88,11 @@ class StationProfileTest {
         val dao = database.stations()
         val original = StationProfile(name = "Traffic", instructions = "Cover local roads", icon = "🚗")
         dao.save(original)
-        val edited = original.copy(name = "Unsaved rename", random = true)
+        val traffic = StationSegment(name = "Traffic", randomPosition = true)
+        val edited = original.withSegment(traffic).copy(name = "Unsaved rename")
         dao.saveLineup(edited)
         val record = dao.pending().single()
-        assertEquals(original.copy(random = true), record.decode())
+        assertEquals(original.withSegment(traffic), record.decode())
         assertEquals(2L, record.revision)
         assertEquals("Backup pending", record.backup)
     }
@@ -100,7 +101,7 @@ class StationProfileTest {
         val dao = database.stations()
         val original = StationProfile(name = "Local")
         dao.save(original)
-        val unsaved = original.copy(name = "Uncommitted name", random = true)
+        val unsaved = original.copy(name = "Uncommitted name")
         val traffic = StationSegment(name = "Traffic", durationSeconds = 90, enabled = false,
             instructions = "Cover bridge closures.")
         dao.saveSegment(unsaved, traffic)
@@ -145,7 +146,7 @@ class StationProfileTest {
 
     @Test fun backupStatusCannotMarkARevisionThatChangedAndCopyHasNewIds() = runBlocking {
         val dao = database.stations()
-        val original = StationProfile(name = "Original", mode = StationMode.PAUSED, random = true)
+        val original = StationProfile(name = "Original", mode = StationMode.PAUSED)
         dao.save(original)
         val first = dao.revision(original.id)!!
         val changed = original.copy(name = "Changed")

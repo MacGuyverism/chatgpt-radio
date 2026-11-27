@@ -17,8 +17,8 @@ Phase 2 lets users create and edit stations, configure their segment lineup, and
 
 ## Segments and Edit Segment
 
-- **Segments** shows the lineup, enabled count, and Fixed or Random order setting. Tapping a row opens **Edit Segment**. Users can add, remove, and reorder custom segments. Opening and Closing are editable and remain enabled at the first and last positions.
-- Preserve the manual sequence when switching to Random so switching back to Fixed restores it. Random order applies only to enabled custom segments between Opening and Closing.
+- **Segments** shows the lineup, enabled count, and a Fixed or Random position control on each custom row alongside its drag handle and editor chevron. Tapping a row opens **Edit Segment**. Users can add, remove, and reorder custom segments. Opening and Closing are editable and remain enabled at the first and last positions.
+- New segments default to Fixed. Drag determines the saved lineup. On each run, shuffle only the slots of enabled Random segments that produced a report. Zero or one Random report keeps its place. Opening, Closing, and every Fixed report keep their places in the playable lineup. Producing an edition preserves the saved lineup. Older stations previously saved in station-wide Random mode retain that choice on their existing custom segments.
 - Allow one custom segment per three minutes of target duration, up to 20. If a shorter duration would exceed that limit, show the allowed count and let the user adjust the lineup before saving. Preserve existing segments until the user chooses which to remove.
 - **Edit Segment** includes the name, enabled state for custom segments, segment-specific content instructions, approximate airtime, and sound-bite assignment. Opening and Closing default to 0:30 each and can be adjusted. Enabled custom segments share the remaining seconds equally unless given a set time. Show the remaining budget during editing, exclude disabled segments, and reserve at least one second per automatic segment. Existing unequal custom weights convert to time estimates when opening older profiles.
 - Keep **Reporter** and **Preferred sources** visible but disabled until their editors are available.
@@ -55,7 +55,7 @@ Show horizontally scrollable tiles with the chapter number, start time, and titl
 
 - Create a station using the header **+**, reopen it, and copy it. Editing the copy leaves the original intact.
 - Edit and save a segment, return directly to Stations, restart the app, and reopen it. Verify the edit persisted without an additional **Save station**.
-- Reorder custom segments, switch to Random and back to Fixed, and verify the sequence and pinned endpoints. Shorten the target duration and verify that validation preserves the lineup.
+- Reorder custom segments, mark two nonadjacent rows Random, and verify that only those slots can swap on a run. With one Random segment, verify the saved order plays. Shorten the target duration and verify that validation preserves the lineup.
 - Import and preview a sound bite, save its assignment, and verify it plays after restart. Confirm a failed replacement preserves the saved clip.
 - Save Manual, Scheduled, and Scheduled (paused) states offline. Verify the latest revision backs up after reconnecting and that these actions start no production jobs.
 - In Radio, scroll the chapter tiles and tap one. Verify playback seeks to the displayed start time, the active tile and details update, and **All** shows the actual chapter count.
