@@ -33,7 +33,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = 2
-        versionName = "0.0.2"
+        versionName = "0.0.23"
     }
 
     val debugKeystore = providers.environmentVariable("BRIEFSONA_DEBUG_KEYSTORE_PATH").orNull
@@ -51,9 +51,6 @@ android {
             keyAlias = "briefsona-debug"
             keyPassword = password
         }
-    }
-    buildTypes.getByName("debug") {
-        versionNameSuffix = "x"
     }
     buildFeatures { compose = true; buildConfig = true }
     compileOptions {
