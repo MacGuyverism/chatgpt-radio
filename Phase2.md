@@ -9,7 +9,7 @@ Phase 2 lets users create and edit stations, configure their segment lineup, and
 
 ## Stations and Station Profile
 
-- **Stations** shows a card for each station with its icon, name, target duration, segment count, and production mode. Highlight the station currently loaded in Radio. Tapping a card opens its profile. **Load station** is a separate action, available when the station has a playable edition.
+- **Stations** shows a card for each station with its icon, name, target duration, segment count, and production mode. Highlight the station currently loaded in Radio. A chevron at the far right of the name row indicates that tapping the card opens its profile. **Load station** is a separate action, available when the station has a playable edition.
 - The **+** in the Stations header is the only create-station action. Remove the duplicate **Create new station** button at the bottom.
 - **+** opens a new Station Profile in Manual mode with an editable Opening and Closing. The Profile, Segments, Schedule, and Sound bites tabs belong to that station.
 - **Station Profile** includes the station name, icon, target duration from 5 to 60 minutes, and station-wide broadcast instructions. **Create a copy** creates an independent profile and segment lineup. The reference also shows **Delete station**. Keep it disabled until deletion of local and backed-up data is supported.
@@ -20,7 +20,7 @@ Phase 2 lets users create and edit stations, configure their segment lineup, and
 - **Segments** shows the lineup, enabled count, and Fixed or Random order setting. Tapping a row opens **Edit Segment**. Users can add, remove, and reorder custom segments. Opening and Closing are editable and remain enabled at the first and last positions.
 - Preserve the manual sequence when switching to Random so switching back to Fixed restores it. Random order applies only to enabled custom segments between Opening and Closing.
 - Allow one custom segment per three minutes of target duration, up to 20. If a shorter duration would exceed that limit, show the allowed count and let the user adjust the lineup before saving. Preserve existing segments until the user chooses which to remove.
-- **Edit Segment** includes the name, enabled state for custom segments, segment-specific content instructions, relative duration, and sound-bite assignment. Show relative duration as a labeled multiplier, such as **Extended · 1.5×**. Preserve existing whole-number weights when opening older profiles.
+- **Edit Segment** includes the name, enabled state for custom segments, segment-specific content instructions, approximate airtime, and sound-bite assignment. Opening and Closing default to 0:30 each and can be adjusted. Enabled custom segments share the remaining seconds equally unless given a set time. Show the remaining budget during editing, exclude disabled segments, and reserve at least one second per automatic segment. Existing unequal custom weights convert to time estimates when opening older profiles.
 - Keep **Reporter** and **Preferred sources** visible but disabled until their editors are available.
 
 ## Sound bites and Schedule

@@ -62,7 +62,7 @@ private val backgrounds = listOf(Color(0xff151517), Color(0xff141c26), Color(0xf
 private val cards = listOf(Color(0xff262628), Color(0xff242f3c), Color(0xff332820))
 private val accents = listOf(Color(0xffffb340), Color(0xff55caff), Color(0xffff4949),
     Color(0xff51e69a), Color(0xffb58aff), Color(0xffeeeeee))
-private val green = Color(0xff51e69a)
+internal val green = Color(0xff51e69a)
 private val blue = Color(0xff55caff)
 private val muted = Color(0xffb6b5b5)
 private val shape = RoundedCornerShape(14.dp)
@@ -246,7 +246,7 @@ private fun Context.mainExecutorCompat(command: Runnable) {
 }
 
 @Composable
-private fun Panel(content: @Composable ColumnScope.() -> Unit) {
+internal fun Panel(content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface, shape).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
 }
@@ -452,11 +452,9 @@ private fun bluetoothConnected(): Boolean {
 }
 
 @Composable
-private fun Stations(status: String, episodes: List<Episode>, prefs: Preferences, configured: Boolean,
-    retrieve: () -> Unit) {
+internal fun productionSummary(status: String): String {
     val json = remember(status) { runCatching { JSONObject(status) }.getOrNull() }
     val state = json?.optString("state")
-    val release = json?.optString("release_at").orEmpty()
     val idle = state in listOf("Ready", "Failed", "Expired")
     val heartbeat = json?.optString("heartbeat_at").orEmpty()
     var now by remember { mutableStateOf(Instant.now()) }
@@ -464,22 +462,25 @@ private fun Stations(status: String, episodes: List<Episode>, prefs: Preferences
     val heartbeatStale = runCatching { Instant.parse(heartbeat).plusSeconds(120) < now }.getOrDefault(false)
     val releasedDay = runCatching { LocalDate.parse(json?.optString("date")) }.getOrNull()
     val nextStart = runCatching { Instant.parse(json?.optString("next_production_at")) }.getOrNull()
-    val summary = when {
+    return when {
         releasedDay != null && releasedDay < LocalDate.now().minusDays(6) -> "Expired"
         state in listOf("In progress", "Awaiting release") && heartbeatStale -> "Delayed"
         idle && nextStart != null && now >= nextStart -> "Delayed"
         else -> state ?: "Scheduled"
     }
+}
+
+@Composable
+private fun Stations(status: String, episodes: List<Episode>, prefs: Preferences, configured: Boolean,
+    retrieve: () -> Unit) {
+    val json = remember(status) { runCatching { JSONObject(status) }.getOrNull() }
+    val idle = json?.optString("state") in listOf("Ready", "Failed", "Expired")
     val next = json?.optString(if (idle) "next_release_at" else "release_at").orEmpty()
     val production = json?.optString(if (idle) "next_production_at" else "production_at").orEmpty()
     val latest = episodes.firstOrNull()
+    Text("LATEST BROADCAST", color = muted)
     Panel {
-        Text("Daily · ${if (release.isBlank()) "7:00 AM Eastern" else localTime(release)}")
-        HorizontalDivider()
-        SettingValue("Production", summary, if (summary == "Ready") green else MaterialTheme.colorScheme.primary)
-    }
-    Panel {
-        Text("Latest broadcast", style = MaterialTheme.typography.titleMedium)
+        if (latest != null) Text("Morning Edition", style = MaterialTheme.typography.titleLarge)
         Text(latest?.let { "${it.date} · ${clock(it.duration)}" } ?: "No broadcast available", color = muted)
         if (latest?.local != null) Text("Downloaded", color = green)
         OutlinedButton(onClick = retrieve, enabled = configured, modifier = Modifier.fillMaxWidth()) {
@@ -488,6 +489,7 @@ private fun Stations(status: String, episodes: List<Episode>, prefs: Preferences
         prefs[Prefs.retrieval]?.takeUnless { it == "Connected" }?.let { Text(it, color = muted) }
         if (!configured) Text("Set the Supabase project URL in Settings.", color = muted)
     }
+    Text("PRODUCTION STATUS", color = muted)
     Panel {
         Text("Next scheduled broadcast", style = MaterialTheme.typography.titleMedium)
         Text(if (next.isBlank()) "Daily at 7:00 AM Eastern" else localTime(next))

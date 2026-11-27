@@ -53,6 +53,7 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     implementation("androidx.datastore:datastore-preferences:1.1.3")
     ksp("androidx.room:room-compiler:2.6.1")
+    testImplementation("org.json:json:20240303")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation(platform("androidx.compose:compose-bom:2025.02.00"))
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")

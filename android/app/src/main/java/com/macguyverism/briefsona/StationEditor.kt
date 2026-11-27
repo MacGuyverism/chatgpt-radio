@@ -4,6 +4,11 @@ import android.media.MediaPlayer
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -91,19 +96,41 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
                 .semantics { contentDescription = "Add station" }) { Text("+") }
         }
         val profiles = listOf(morning) + records.filter { it.id != morning.id }.map { it.decode() }
+        val summary = productionSummary(status)
+        val releaseTime = remember(status) {
+            runCatching { localTime(JSONObject(status).getString("release_at")) }.getOrNull()
+                ?.takeIf { it.isNotBlank() } ?: "7:00 AM Eastern"
+        }
+        Text("YOUR STATIONS", color = MaterialTheme.colorScheme.onSurfaceVariant)
         profiles.forEach { profile ->
             val loaded = profile.id == morning.id
-            OutlinedCard(onClick = { edit(profile) }, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(profile.icon)
-                    Text(profile.name, style = MaterialTheme.typography.titleMedium,
-                        color = if (loaded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-                    Text("${profile.mode.label} · ${profile.minutes} min · ${profile.segments.size} segments")
-                    records.firstOrNull { it.id == profile.id }?.let { Text(it.backup) }
-                    if (loaded) {
-                        Text("Loaded in Radio")
-                        OutlinedButton(onClick = loadStation, enabled = playable) { Text("Load station") }
+            val colors = MaterialTheme.colorScheme
+            OutlinedCard(onClick = { edit(profile) }, modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.outlinedCardColors(containerColor = colors.surface),
+                border = BorderStroke(1.dp, if (loaded) colors.primary else colors.outlineVariant)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(Modifier.size(46.dp).background(colors.primary.copy(alpha = .12f), RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center) { Text(profile.icon, color = colors.primary) }
+                        Column(Modifier.weight(1f)) {
+                            Text(profile.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text("${profile.minutes} minutes · ${profile.segments.size} segments", color = colors.onSurfaceVariant)
+                        }
+                        Chevron()
                     }
+                    HorizontalDivider()
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (loaded && profile.mode == StationMode.SCHEDULED) "Daily · $releaseTime" else profile.mode.label,
+                            Modifier.weight(1f))
+                        if (loaded) Text(summary, color = if (summary == "Ready") green else colors.primary)
+                    }
+                    if (loaded) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("✓  Currently loaded", Modifier.weight(1f))
+                            TextButton(onClick = loadStation, enabled = playable) { Text("Load station") }
+                        }
+                    }
+                    records.firstOrNull { it.id == profile.id }?.let { Text(it.backup, style = MaterialTheme.typography.bodySmall) }
                 }
             }
         }
@@ -111,6 +138,7 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
         return
     }
 
+    val lineup = remember(lineupJson) { lineupJson?.let { StationProfile.from(JSONObject(it)) } }
     val heading = when {
         soundBitesOpen -> "Sound bites"
         segment != null -> "Edit Segment"
@@ -118,16 +146,31 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
         editingSegments -> "Segments"
         else -> "Station Profile"
     }
-    TextButton(onClick = ::goBack, enabled = !saving) {
-        Text(when {
-            soundBitesOpen -> "Back to Edit Segment"
-            segment != null -> "Back to Segments"
-            editingSchedule || editingSegments -> "Back to Station Profile"
-            else -> "Back to Stations"
-        })
+    val backLabel = when {
+        soundBitesOpen -> "Back to Edit Segment"
+        segment != null -> "Back to Segments"
+        editingSchedule || editingSegments -> "Back to Station Profile"
+        else -> "Back to Stations"
     }
-    Text(heading, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-        style = MaterialTheme.typography.headlineSmall)
+    if (editingSegments && !soundBitesOpen) {
+        Box(Modifier.fillMaxWidth()) {
+            IconButton(onClick = ::goBack, enabled = !saving, modifier = Modifier.align(Alignment.CenterStart)
+                .semantics { contentDescription = backLabel }) { Text("←") }
+            Text(heading.uppercase(), Modifier.align(Alignment.Center), color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold, letterSpacing = 2.sp, style = MaterialTheme.typography.titleLarge)
+            if (segment == null && lineup != null) {
+                IconButton(onClick = {
+                    error = null
+                    segmentJson = StationSegment(name = "").json().toString()
+                }, enabled = !saving && lineup.canAddSegment, modifier = Modifier.align(Alignment.CenterEnd)
+                    .semantics { contentDescription = "Add segment" }) { Text("⊕") }
+            }
+        }
+    } else {
+        TextButton(onClick = ::goBack, enabled = !saving) { Text(backLabel) }
+        Text(heading, modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            style = MaterialTheme.typography.headlineSmall)
+    }
     error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     val mode = scheduleMode
     if (mode != null) {
@@ -157,8 +200,7 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
             })
         return
     }
-    if (editingSegments) {
-        val lineup = remember(lineupJson) { StationProfile.from(JSONObject(requireNotNull(lineupJson))) }
+    if (lineup != null) {
         if (segment != null && soundBitesOpen) {
             SoundBites(segment.name, cueDraft, saving, update = { cueDraft = it }, onSave = {
                 val cue = cueDraft
@@ -193,7 +235,7 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
                     error = null
                 }
             } else null
-            EditSegment(segment, pinned, saving, openSoundBites, update = {
+            EditSegment(segment, lineup.withSegment(segment), pinned, saving, openSoundBites, update = {
                 if (!saving) {
                     segmentJson = it.json().toString()
                     error = null
@@ -319,75 +361,6 @@ private fun StationSchedule(name: String, mode: StationMode, saving: Boolean, st
         Text("Retrieve existing broadcast")
     }
     Button(onClick = onSave, enabled = !saving) { Text("Save schedule") }
-}
-
-@Composable
-private fun SegmentLineup(profile: StationProfile, openSegment: (StationSegment) -> Unit,
-    edit: (StationProfile) -> Unit, saving: Boolean, saveLineup: () -> Unit) {
-    Text("${profile.segments.count { it.enabled }} of ${profile.segments.size} enabled")
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        FilterChip(!profile.random, { edit(profile.copy(random = false)) }, enabled = !saving, label = { Text("Fixed order") })
-        FilterChip(profile.random, { edit(profile.copy(random = true)) }, enabled = !saving, label = { Text("Random order") })
-    }
-    profile.segments.forEachIndexed { index, segment ->
-        val custom = index in 1 until profile.segments.lastIndex
-        fun move(destination: Int) {
-            edit(profile.copy(segments = profile.segments.toMutableList().apply { add(destination, removeAt(index)) }))
-        }
-        OutlinedCard(onClick = { openSegment(segment) }, enabled = !saving, modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(12.dp)) {
-                Text(segment.name, style = MaterialTheme.typography.titleMedium)
-                val role = when (index) {
-                    0 -> "Opening · pinned"
-                    profile.segments.lastIndex -> "Closing · pinned"
-                    else -> if (segment.enabled) "Enabled" else "Disabled"
-                }
-                Text("$role · ${segment.weight}×")
-                if (custom) {
-                    Row {
-                        TextButton(onClick = { move(index - 1) }, enabled = !saving && index > 1) { Text("Move up") }
-                        TextButton(onClick = { move(index + 1) },
-                            enabled = !saving && index < profile.segments.lastIndex - 1) { Text("Move down") }
-                        TextButton(onClick = { edit(profile.copy(segments = profile.segments - segment)) },
-                            enabled = !saving) { Text("Remove") }
-                    }
-                }
-            }
-        }
-    }
-    Button(onClick = { openSegment(StationSegment(name = "")) },
-        enabled = !saving && profile.segments.size - 2 < (profile.minutes / 3).coerceAtMost(20)) { Text("+ Add Segment") }
-    Button(onClick = saveLineup, enabled = !saving) { Text("Save lineup") }
-}
-
-@Composable
-private fun EditSegment(segment: StationSegment, pinned: Boolean, saving: Boolean, openSoundBites: (() -> Unit)?,
-    update: (StationSegment) -> Unit, onSave: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(if (pinned) "Always enabled" else "Enabled", Modifier.weight(1f))
-        Switch(checked = segment.enabled, enabled = !pinned && !saving,
-            onCheckedChange = { update(segment.copy(enabled = it)) })
-    }
-    OutlinedTextField(segment.instructions, { update(segment.copy(instructions = it)) },
-        label = { Text("Content instructions") }, modifier = Modifier.fillMaxWidth())
-    OutlinedTextField(segment.name, { update(segment.copy(name = it)) },
-        label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-    var weightText by rememberSaveable(segment.id) { mutableStateOf(segment.weight.toString()) }
-    OutlinedTextField(weightText, {
-        weightText = it
-        val parsed = it.replace(',', '.').toDoubleOrNull()
-        update(segment.copy(weight = parsed?.takeIf { value -> value.isFinite() } ?: 0.0))
-    }, label = { Text("Relative airtime (×)") }, singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-        modifier = Modifier.fillMaxWidth())
-    OutlinedButton(onClick = { openSoundBites?.invoke() }, enabled = !saving && openSoundBites != null) {
-        Text("Sound bites")
-    }
-    OutlinedButton(onClick = {}, enabled = false) { Text("Reporter") }
-    OutlinedButton(onClick = {}, enabled = false) { Text("Preferred sources") }
-    Button(onClick = onSave, enabled = !saving && segment.name.isNotBlank() && segment.weight > 0) {
-        Text("Save segment")
-    }
 }
 
 @Composable

@@ -63,12 +63,12 @@ class StationProfileTest {
         }
     }
 
-    @Test fun savedSegmentOrderWeightsAndCuesSurviveReopening() = runBlocking {
+    @Test fun savedSegmentOrderTimesAndCuesSurviveReopening() = runBlocking {
         val context = compose.activity.applicationContext
         val dao = database.stations()
         val defaults = StationProfile(name = "Segment settings")
-        val first = StationSegment(name = "World", weight = 1.5, cue = "bundled:international")
-        val second = StationSegment(name = "Business", weight = 2.0, cue = "bundled:finance")
+        val first = StationSegment(name = "World", durationSeconds = 90, cue = "bundled:international")
+        val second = StationSegment(name = "Business", durationSeconds = 120, cue = "bundled:finance")
         val profile = defaults.copy(segments = listOf(
             defaults.segments.first(), second, first, defaults.segments.last()
         ), random = true)
@@ -101,7 +101,7 @@ class StationProfileTest {
         val original = StationProfile(name = "Local")
         dao.save(original)
         val unsaved = original.copy(name = "Uncommitted name", random = true)
-        val traffic = StationSegment(name = "Traffic", weight = 1.5, enabled = false,
+        val traffic = StationSegment(name = "Traffic", durationSeconds = 90, enabled = false,
             instructions = "Cover bridge closures.")
         dao.saveSegment(unsaved, traffic)
         val reopened = dao.find(original.id)!!.decode()
