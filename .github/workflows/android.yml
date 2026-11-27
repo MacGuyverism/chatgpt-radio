@@ -20,14 +20,33 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
+      - name: Restore persistent test signing key
+        if: github.event_name != 'pull_request' && github.ref_name == 'feature/article-chapters-reliability'
+        env:
+          KEYSTORE: ${{ secrets.BRIEFSONA_DEBUG_KEYSTORE }}
+          PASSWORD: ${{ secrets.BRIEFSONA_DEBUG_PASSWORD }}
+        run: |
+          if [[ -z "$KEYSTORE" || -z "$PASSWORD" ]]; then
+            echo "::error::Configure both Briefsona debug signing secrets before publishing an APK."
+            exit 1
+          fi
+          umask 077
+          printf '%s' "$KEYSTORE" | base64 --decode > "$RUNNER_TEMP/briefsona-debug.p12"
+          printf '%s' "$PASSWORD" > "$RUNNER_TEMP/briefsona-debug-password"
+          {
+            echo "BRIEFSONA_DEBUG_KEYSTORE_PATH=$RUNNER_TEMP/briefsona-debug.p12"
+            echo "BRIEFSONA_DEBUG_PASSWORD_PATH=$RUNNER_TEMP/briefsona-debug-password"
+            echo "BRIEFSONA_DEBUG_BUILD_NUMBER=$GITHUB_RUN_NUMBER"
+          } >> "$GITHUB_ENV"
       - run: gradle -p android testDebugUnitTest assembleDebug
         env:
           BRIEFSONA_PROJECT_URL: ${{ secrets.SUPABASE_URL }}
           BRIEFSONA_BACKUP_URL: ${{ vars.BRIEFSONA_BACKUP_URL }}
           BRIEFSONA_BACKUP_PUBLISHABLE_KEY: ${{ vars.BRIEFSONA_BACKUP_PUBLISHABLE_KEY }}
       - uses: actions/upload-artifact@v4
+        if: github.event_name != 'pull_request' && github.ref_name == 'feature/article-chapters-reliability'
         with:
-          name: briefsona-0.0.2-debug-${{ github.sha }}
+          name: briefsona-0.0.2x-debug-${{ github.sha }}
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 

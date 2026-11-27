@@ -5,6 +5,9 @@ plugins {
     id("com.google.devtools.ksp") version "2.0.21-1.0.28"
 }
 
+val debugBuildNumber = providers.environmentVariable("BRIEFSONA_DEBUG_BUILD_NUMBER")
+        .map { it.toInt().also { number -> require(number in 1..2_099_999_997) } }.orNull
+
 android {
     namespace = "com.macguyverism.briefsona"
     compileSdk = 35
@@ -33,12 +36,39 @@ android {
         versionName = "0.0.2"
     }
 
+    val debugKeystore = providers.environmentVariable("BRIEFSONA_DEBUG_KEYSTORE_PATH").orNull
+    val debugPasswordFile = providers.environmentVariable("BRIEFSONA_DEBUG_PASSWORD_PATH").orNull
+    require((debugKeystore == null) == (debugPasswordFile == null)) {
+        "Configure both Briefsona debug signing paths"
+    }
+    if (debugKeystore != null) {
+        requireNotNull(debugBuildNumber) { "Set BRIEFSONA_DEBUG_BUILD_NUMBER for a signed test APK" }
+        val password = file(requireNotNull(debugPasswordFile)).readText().trim()
+        signingConfigs.getByName("debug") {
+            storeFile = file(debugKeystore)
+            storeType = "PKCS12"
+            storePassword = password
+            keyAlias = "briefsona-debug"
+            keyPassword = password
+        }
+    }
+    buildTypes.getByName("debug") {
+        versionNameSuffix = "x"
+    }
     buildFeatures { compose = true; buildConfig = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
+}
+
+androidComponents {
+    if (debugBuildNumber != null) {
+        onVariants(selector().withBuildType("debug")) { variant ->
+            variant.outputs.forEach { it.versionCode.set(2 + debugBuildNumber) }
+        }
+    }
 }
 
 dependencies {
