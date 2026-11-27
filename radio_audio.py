@@ -66,12 +66,13 @@ def chunks(text):
     if current:
         yield current
 
-def render_episode(generated,out,final,ai):
+def render_episode(generated,out,final,ai,templates=None):
     parts=[]
     boundaries=[]
     for i,(title,text) in enumerate(generated):
-        boundaries.append((title, len(parts)))
-        name,voice,style=presenters[title]
+        template = templates[i] if templates is not None else title
+        name,voice,style=presenters[template or "Opening headlines"]
+        boundaries.append((title, len(parts), name))
         speech=[]
         for j,chunk in enumerate(chunks(text)):
             raw=out / f"voice-{i:02d}-{j:02d}.mp3"
@@ -84,9 +85,9 @@ def render_episode(generated,out,final,ai):
             print("Narrated",name,title,j+1,flush=True)
         section=out / f"section-{i:02d}.wav"
         concat(speech,section,out)
-        if title in cues:
-            cue=out / ("cue-"+cues[title]+".wav")
-            if title=="Daily Detour":
+        if template in cues:
+            cue=out / ("cue-"+cues[template]+".wav")
+            if template=="Daily Detour":
                 parts.append(cue)
             else:
                 length=duration(cue)
@@ -116,14 +117,14 @@ def render_episode(generated,out,final,ai):
     tags = ID3(final)
     tags.delall('CHAP')
     tags.delall('CTOC')
-    for i, (title, index) in enumerate(boundaries):
+    for i, (title, index, reporter) in enumerate(boundaries):
         start = round(offsets[index] / tempo * 1000)
         end = round(offsets[boundaries[i+1][1]] / tempo * 1000) if i+1 < len(boundaries) else round(actual * 1000)
         chapter_id = f'segment-{i+1}'
         if not 0 <= start < end <= round(actual * 1000):
             raise RuntimeError('Invalid chapter timing')
         tags.add(CHAP(element_id=chapter_id, start_time=start, end_time=end, start_offset=0xffffffff, end_offset=0xffffffff, sub_frames=[TIT2(encoding=3,text=title)]))
-        chapters.append({'id':chapter_id,'title':title,'reporter':presenters[title][0],'start_ms':start,'end_ms':end})
+        chapters.append({'id':chapter_id,'title':title,'reporter':reporter,'start_ms':start,'end_ms':end})
     tags.add(CTOC(element_id='toc', flags=CTOCFlags.TOP_LEVEL | CTOCFlags.ORDERED, child_element_ids=[c['id'] for c in chapters], sub_frames=[TIT2(encoding=3,text='Segments')]))
     tags.save(final, v2_version=3)
     final.with_suffix(".json").write_text(json.dumps({
