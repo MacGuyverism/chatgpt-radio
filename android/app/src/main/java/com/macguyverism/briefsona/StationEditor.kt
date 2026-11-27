@@ -31,6 +31,8 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
     var draftJson by rememberSaveable { mutableStateOf<String?>(null) }
     var lineupJson by rememberSaveable { mutableStateOf<String?>(null) }
     var segmentJson by rememberSaveable { mutableStateOf<String?>(null) }
+    var soundBitesOpen by rememberSaveable { mutableStateOf(false) }
+    var cueDraft by rememberSaveable { mutableStateOf<String?>(null) }
     val segment = remember(segmentJson) { segmentJson?.let { StationSegment.from(JSONObject(it)) } }
     var scheduleMode by rememberSaveable { mutableStateOf<StationMode?>(null) }
     val editingSchedule = scheduleMode != null
@@ -38,7 +40,7 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
     val draft = remember(draftJson) { draftJson?.let { StationProfile.from(JSONObject(it)) } }
-    LaunchedEffect(draft?.id, editingSegments, segment?.id, editingSchedule) { scroll.scrollTo(0) }
+    LaunchedEffect(draft?.id, editingSegments, segment?.id, editingSchedule, soundBitesOpen) { scroll.scrollTo(0) }
 
     fun edit(profile: StationProfile) {
         draftJson = profile.json().toString()
@@ -47,7 +49,10 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
 
     fun goBack() {
         error = null
-        if (segmentJson != null) {
+        if (soundBitesOpen) {
+            soundBitesOpen = false
+            cueDraft = null
+        } else if (segmentJson != null) {
             segmentJson = null
         } else if (editingSchedule) {
             scheduleMode = null
@@ -107,6 +112,7 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
     }
 
     val heading = when {
+        soundBitesOpen -> "Sound bites"
         segment != null -> "Edit Segment"
         editingSchedule -> "Schedule"
         editingSegments -> "Segments"
@@ -114,6 +120,7 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
     }
     TextButton(onClick = ::goBack, enabled = !saving) {
         Text(when {
+            soundBitesOpen -> "Back to Edit Segment"
             segment != null -> "Back to Segments"
             editingSchedule || editingSegments -> "Back to Station Profile"
             else -> "Back to Stations"
@@ -152,9 +159,41 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
     }
     if (editingSegments) {
         val lineup = remember(lineupJson) { StationProfile.from(JSONObject(requireNotNull(lineupJson))) }
+        if (segment != null && soundBitesOpen) {
+            SoundBites(segment.name, cueDraft, saving, update = { cueDraft = it }, onSave = {
+                val cue = cueDraft
+                saving = true
+                scope.launch {
+                    try {
+                        val committed = dao.saveSoundBite(draft, segment.id, cue)
+                        edit(draft.copy(segments = committed.segments))
+                        lineupJson = lineup.withSegment(lineup.segments.first { it.id == segment.id }.copy(cue = cue))
+                            .json().toString()
+                        segmentJson = segment.copy(cue = cue).json().toString()
+                        soundBitesOpen = false
+                        cueDraft = null
+                        StationBackup.request(context)
+                    } catch (failure: CancellationException) {
+                        throw failure
+                    } catch (_: Exception) {
+                        error = "Could not save the sound bite. Try again."
+                    } finally {
+                        saving = false
+                    }
+                }
+            })
+            return
+        }
         if (segment != null) {
             val pinned = segment.id == lineup.segments.first().id || segment.id == lineup.segments.last().id
-            EditSegment(segment, pinned, saving, update = {
+            val openSoundBites: (() -> Unit)? = if (draft.segments.any { it.id == segment.id }) {
+                {
+                    cueDraft = segment.cue
+                    soundBitesOpen = true
+                    error = null
+                }
+            } else null
+            EditSegment(segment, pinned, saving, openSoundBites, update = {
                 if (!saving) {
                     segmentJson = it.json().toString()
                     error = null
@@ -322,51 +361,8 @@ private fun SegmentLineup(profile: StationProfile, openSegment: (StationSegment)
 }
 
 @Composable
-private fun EditSegment(segment: StationSegment, pinned: Boolean, saving: Boolean,
+private fun EditSegment(segment: StationSegment, pinned: Boolean, saving: Boolean, openSoundBites: (() -> Unit)?,
     update: (StationSegment) -> Unit, onSave: () -> Unit) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val latestSegment by rememberUpdatedState(segment)
-    var target by rememberSaveable { mutableStateOf<String?>(null) }
-    var importing by remember { mutableStateOf(false) }
-    var feedback by remember { mutableStateOf<String?>(null) }
-    var playingCue by remember { mutableStateOf<String?>(null) }
-    val preview = remember { CuePreview() }
-
-    fun stopPreview(segmentId: String) {
-        if (playingCue == segmentId) {
-            preview.stop()
-            playingCue = null
-        }
-    }
-
-    fun applyCue(segmentId: String, cue: String?) {
-        stopPreview(segmentId)
-        if (latestSegment.id == segmentId) update(latestSegment.copy(cue = cue))
-    }
-
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        val segmentId = target
-        target = null
-        if (uri != null && segmentId != null) {
-            importing = true
-            feedback = null
-            scope.launch {
-                try {
-                    applyCue(segmentId, importStationCue(context, uri))
-                } catch (error: CancellationException) {
-                    throw error
-                } catch (_: Exception) {
-                    feedback = "Could not import this clip. Choose a supported audio file under 45 MB."
-                } finally {
-                    importing = false
-                }
-            }
-        }
-    }
-    DisposableEffect(preview) { onDispose { preview.stop() } }
-
-    feedback?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(if (pinned) "Always enabled" else "Enabled", Modifier.weight(1f))
         Switch(checked = segment.enabled, enabled = !pinned && !saving,
@@ -384,60 +380,101 @@ private fun EditSegment(segment: StationSegment, pinned: Boolean, saving: Boolea
     }, label = { Text("Relative airtime (×)") }, singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         modifier = Modifier.fillMaxWidth())
-    val cue = segment.cue
+    OutlinedButton(onClick = { openSoundBites?.invoke() }, enabled = !saving && openSoundBites != null) {
+        Text("Sound bites")
+    }
+    OutlinedButton(onClick = {}, enabled = false) { Text("Reporter") }
+    OutlinedButton(onClick = {}, enabled = false) { Text("Preferred sources") }
+    Button(onClick = onSave, enabled = !saving && segment.name.isNotBlank() && segment.weight > 0) {
+        Text("Save segment")
+    }
+}
+
+@Composable
+private fun SoundBites(segmentName: String, cue: String?, saving: Boolean,
+    update: (String?) -> Unit, onSave: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val latestUpdate by rememberUpdatedState(update)
+    var importing by remember { mutableStateOf(false) }
+    var feedback by remember { mutableStateOf<String?>(null) }
+    var playing by remember { mutableStateOf(false) }
+    var bundled by remember { mutableStateOf(false) }
+    val preview = remember { CuePreview() }
+    fun choose(value: String?) {
+        preview.stop()
+        playing = false
+        feedback = null
+        latestUpdate(value)
+    }
+
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            importing = true
+            feedback = null
+            scope.launch {
+                try {
+                    choose(importStationCue(context, uri))
+                } catch (failure: CancellationException) {
+                    throw failure
+                } catch (_: Exception) {
+                    feedback = "Could not import this clip. Choose a supported audio file under 45 MB."
+                } finally {
+                    importing = false
+                }
+            }
+        }
+    }
+    DisposableEffect(preview) { onDispose { preview.stop() } }
+    Text(segmentName, style = MaterialTheme.typography.titleMedium)
+    feedback?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     Text(when {
         cue == null -> "No sound bite"
         cue.startsWith("file:") -> "Imported sound bite"
         else -> bundledCueTitle(cue.removePrefix("bundled:"))
     })
-    var bundled by remember { mutableStateOf(false) }
+    val available = !saving && !importing
     Box {
-        TextButton(onClick = { bundled = true }, enabled = !importing) { Text("Choose bundled cue") }
+        OutlinedButton(onClick = { bundled = true }, enabled = available) { Text("Bundled library") }
         DropdownMenu(bundled, { bundled = false }) {
             bundledCueGroups.forEach { (group, cues) ->
                 DropdownMenuItem(text = { Text(group) }, onClick = {}, enabled = false)
                 cues.forEach { id ->
                     DropdownMenuItem(text = { Text(bundledCueTitle(id)) }, onClick = {
                         bundled = false
-                        applyCue(segment.id, "bundled:$id")
+                        choose("bundled:$id")
                     })
                 }
             }
         }
     }
-    TextButton(onClick = { target = segment.id; picker.launch(arrayOf("audio/*")) },
-        enabled = !importing) { Text("Import audio") }
+    Text("My uploads", style = MaterialTheme.typography.titleSmall)
+    OutlinedButton(onClick = { picker.launch(arrayOf("audio/*")) }, enabled = available) {
+        Text(if (cue?.startsWith("file:") == true) "Replace imported audio" else "Import audio")
+    }
     if (cue != null) {
         Row {
             TextButton(onClick = {
                 feedback = null
                 preview.stop()
-                if (playingCue == segment.id) {
-                    playingCue = null
-                } else {
-                    playingCue = segment.id
-                    preview.play({
-                        if (cue.startsWith("file:")) {
-                            setDataSource(importedCueFile(context, cue).absolutePath)
-                        } else {
-                            context.assets.openFd("station-cues/${cue.removePrefix("bundled:")}.mp3").use {
-                                setDataSource(it.fileDescriptor, it.startOffset, it.length)
-                            }
+                playing = !playing
+                if (playing) preview.play({
+                    if (cue.startsWith("file:")) {
+                        setDataSource(importedCueFile(context, cue).absolutePath)
+                    } else {
+                        context.assets.openFd("station-cues/${cue.removePrefix("bundled:")}.mp3").use {
+                            setDataSource(it.fileDescriptor, it.startOffset, it.length)
                         }
-                    }, finished = { playingCue = null }, failed = {
-                        playingCue = null
-                        feedback = "Could not play this sound bite."
-                    })
-                }
-            }) { Text(if (playingCue == segment.id) "Stop preview" else "Preview") }
-            TextButton(onClick = { applyCue(segment.id, null) }, enabled = !importing) { Text("Detach") }
+                    }
+                }, finished = { playing = false }, failed = {
+                    playing = false
+                    feedback = "Could not play this sound bite."
+                })
+            }, enabled = available) { Text(if (playing) "Stop preview" else "Preview") }
+            TextButton(onClick = { choose(null) }, enabled = available) { Text("Detach") }
         }
     }
-    OutlinedButton(onClick = {}, enabled = false) { Text("Reporter") }
-    OutlinedButton(onClick = {}, enabled = false) { Text("Preferred sources") }
-    Button(onClick = onSave, enabled = !saving && !importing && segment.name.isNotBlank() && segment.weight > 0) {
-        Text("Save segment")
-    }
+    Button(onClick = onSave, enabled = available) { Text("Save sound bite") }
 }
 
 private class CuePreview {

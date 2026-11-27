@@ -151,6 +151,16 @@ internal abstract class StationDao {
     }
 
     @Transaction
+    open suspend fun saveSoundBite(profile: StationProfile, segmentId: String, cue: String?): StationProfile {
+        val saved = find(profile.id)?.decode() ?: profile
+        val segment = saved.segments.firstOrNull { it.id == segmentId }
+            ?: throw IllegalArgumentException("Save the segment before assigning a sound bite.")
+        val committed = saved.withSegment(segment.copy(cue = cue))
+        save(committed)
+        return committed
+    }
+
+    @Transaction
     open suspend fun saveLineup(draft: StationProfile) {
         val saved = find(draft.id)?.decode() ?: draft
         save(saved.copy(segments = draft.segments, random = draft.random))

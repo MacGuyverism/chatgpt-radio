@@ -376,22 +376,29 @@ private fun Radio(
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically) {
                     Text("SEGMENT ${index + 1} OF ${segments.size}", fontSize = 12.sp, color = muted)
-                    TextButton(onClick = { all = !all }) { Text(if (all) "HIDE SEGMENTS" else "ALL SEGMENTS") }
+                    TextButton(onClick = { all = !all }) { Text(if (all) "Hide" else "All (${segments.size})") }
                 }
                 BoxWithConstraints {
                     val width = maxWidth * .43f
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         segments.forEachIndexed { i, segment ->
                             val selected = i == index
-                            Box(Modifier.width(width).height(48.dp)
+                            Column(Modifier.width(width).heightIn(min = 64.dp)
                                 .background(if (selected) accent.copy(alpha = .17f) else MaterialTheme.colorScheme.surface, shape)
                                 .border(1.dp, if (selected) accent else muted.copy(alpha = .25f), shape)
-                                .clickable { onSeek(segment.start) }, contentAlignment = Alignment.Center) {
-                                Text(segment.title.uppercase(), fontSize = 11.sp, maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 6.dp))
+                                .clickable(enabled = episode?.local != null) { onSeek(segment.start) }.padding(8.dp),
+                                verticalArrangement = Arrangement.Center) {
+                                Text("${i + 1} · ${clock(segment.start)}", fontSize = 11.sp,
+                                    color = if (selected) accent else muted)
+                                Text(segment.title, fontSize = 13.sp, maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }
+                }
+                chapter?.let { current ->
+                    Text(current.title, fontWeight = FontWeight.Bold)
+                    Text("${clock(current.start)} · ${current.reporter}", color = muted)
                 }
                 if (all) segments.forEach { segment ->
                     TextButton(onClick = { onSeek(segment.start) }) {
