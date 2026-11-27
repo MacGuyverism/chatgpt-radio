@@ -8,6 +8,17 @@ class SegmentAirtimeTest {
     private val news = StationSegment(name = "News")
     private val traffic = StationSegment(name = "Traffic")
 
+    @Test fun starterInstructionsCanBeEditedOrCleared() {
+        assertTrue(station.instructions.isNotBlank())
+        for (prompt in listOf(station.instructions, "Focus on local transit.", "")) {
+            val edited = station.copy(instructions = prompt)
+            assertEquals(prompt, StationProfile.from(edited.json()).instructions)
+            assertEquals(prompt, edited.duplicate().instructions)
+        }
+        val legacy = station.json().apply { remove("instructions") }
+        assertEquals("", StationProfile.from(legacy).instructions)
+    }
+
     @Test fun sharesRemainingTimeAndRespectsEdits() {
         val empty = station.airtime()
         assertEquals(840, empty.remaining)

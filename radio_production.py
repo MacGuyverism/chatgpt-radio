@@ -84,7 +84,9 @@ def broadcast_order(reports):
 
 def produce(day):
     raw_profile = os.environ.get("RADIO_STATION_PROFILE")
-    sections = station_sections(json.loads(raw_profile) if raw_profile else None)
+    profile = json.loads(raw_profile) if raw_profile else None
+    sections = station_sections(profile)
+    station_guidance = (profile or {}).get("instructions", "").strip()
     date = str(day)
     out = Path(os.environ.get("RADIO_BUILD_DIR", "build"))
     out.mkdir(parents=True, exist_ok=True)
@@ -137,6 +139,8 @@ def produce(day):
                   guidance + " Presenter: " + presenter + ". Personality: " + style + ". Introduce yourself naturally when taking over from a different presenter. Do not invent interviews or claim to be on location. Earlier segment context: " +
                   "\n".join(x[1] for x in generated) +
                   ". Available article records: " + json.dumps(relevant))
+        if station_guidance:
+            prompt = f"Station-wide broadcast instructions: {station_guidance}\n\n{prompt}"
         response = json.loads(ai("chat/completions", {
             "model": "gpt-4.1-mini", "temperature": 0.45, "max_completion_tokens": max(700, int(target * 2.2)),
             "messages": [{"role": "system", "content": instructions},

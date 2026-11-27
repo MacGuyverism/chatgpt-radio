@@ -157,7 +157,7 @@ class AudioTest(unittest.TestCase):
             self.assertEqual(metadata["chapters"][-1]["end_ms"], metadata["duration_ms"])
 
     def test_profile_run_uses_one_order_for_script_audio_and_chapters(self):
-        profile = {"segments": [
+        profile = {"instructions": "Explain how the news affects daily travel.", "segments": [
             {"name": "Intro"}, {"name": "Traffic", "random_position": True},
             {"name": "Daily Detour"}, {"name": "Weather", "random_position": True}, {"name": "Outro"},
         ]}
@@ -174,6 +174,7 @@ class AudioTest(unittest.TestCase):
                 if endpoint == "audio/speech":
                     spoken.append(payload["input"])
                     return tone
+                self.assertIn(profile["instructions"], payload["messages"][-1]["content"])
                 return json.dumps({"choices": [{"message": {"content": next(replies)}}]}).encode()
 
             with patch.object(radio_production, "ai", side_effect=ai), \

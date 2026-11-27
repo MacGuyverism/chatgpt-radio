@@ -16,16 +16,16 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.time.Instant
+import kotlin.math.roundToInt
 
 @Composable
 internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, morning: StationProfile,
@@ -93,7 +93,9 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
             Text("STATIONS", Modifier.align(Alignment.Center), style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.primary)
             IconButton(onClick = { edit(StationProfile()) }, modifier = Modifier.align(Alignment.CenterEnd)
-                .semantics { contentDescription = "Add station" }) { Text("+") }
+                .semantics { contentDescription = "Add station" }) {
+                Text("+", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.headlineSmall)
+            }
         }
         val profiles = listOf(morning) + records.filter { it.id != morning.id }.map { it.decode() }
         val summary = productionSummary(status)
@@ -298,11 +300,24 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
         singleLine = true, enabled = !saving)
     OutlinedTextField(draft.instructions, { edit(draft.copy(instructions = it)) },
         label = { Text("Station-wide broadcast instructions") }, modifier = Modifier.fillMaxWidth(), enabled = !saving)
-    OutlinedTextField(draft.minutes.takeIf { it > 0 }?.toString().orEmpty(), {
-        edit(draft.copy(minutes = it.toIntOrNull() ?: 0))
-    }, label = { Text("Target duration (minutes)") }, singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = Modifier.fillMaxWidth(), enabled = !saving)
+    Column(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Target duration", Modifier.weight(1f))
+            Text("${draft.minutes} minutes", color = MaterialTheme.colorScheme.primary)
+        }
+        Slider(value = draft.minutes.toFloat(), onValueChange = { value ->
+            val minutes = value.roundToInt()
+            if (minutes != draft.minutes) edit(draft.copy(minutes = minutes))
+        }, valueRange = 5f..60f, steps = 54, enabled = !saving,
+            modifier = Modifier.fillMaxWidth().semantics {
+                contentDescription = "Target duration"
+                stateDescription = "${draft.minutes} minutes"
+            })
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("5 min", style = MaterialTheme.typography.bodySmall)
+            Text("60 min", style = MaterialTheme.typography.bodySmall)
+        }
+    }
     OutlinedButton(onClick = { scheduleMode = draft.mode; error = null },
         modifier = Modifier.fillMaxWidth(), enabled = !saving) {
         Text("Schedule · ${draft.mode.label}")

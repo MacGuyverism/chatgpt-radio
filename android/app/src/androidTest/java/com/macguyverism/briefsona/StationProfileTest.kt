@@ -1,6 +1,8 @@
 package com.macguyverism.briefsona
 
 import android.net.Uri
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.room.Room
@@ -31,7 +33,14 @@ class StationProfileTest {
         val name = "Station ${UUID.randomUUID()}"
         compose.onNodeWithText("Stations").performClick()
         compose.onNodeWithContentDescription("Add station").performClick()
-        compose.onNodeWithText("Station name").performTextInput(name)
+        compose.onNodeWithText(StationProfile.DEFAULT_STATION_INSTRUCTIONS).assertExists()
+        val target = compose.onNodeWithContentDescription("Target duration")
+        target.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "30 minutes"))
+        for (minutes in listOf(5, 37, 60)) {
+            target.performScrollTo().performSemanticsAction(SemanticsActions.SetProgress) { it(minutes.toFloat()) }
+            target.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "$minutes minutes"))
+        }
+        compose.onNodeWithText("Station name").performScrollTo().performTextInput(name)
         compose.onNodeWithText("Schedule · Manual").performScrollTo().performClick()
         compose.onNodeWithText("Produce broadcast now").assertIsNotEnabled()
         compose.onNodeWithText("Retry production").assertIsNotEnabled()

@@ -39,7 +39,7 @@ internal data class StationProfile(
     val mode: StationMode = StationMode.MANUAL,
     val segments: List<StationSegment> = listOf(StationSegment(name = "Opening"), StationSegment(name = "Closing")),
     val icon: String = "◉",
-    val instructions: String = ""
+    val instructions: String = DEFAULT_STATION_INSTRUCTIONS
 ) {
     fun duplicate() = copy(
         id = UUID.randomUUID().toString(), name = "$name (copy)",
@@ -98,9 +98,13 @@ internal data class StationProfile(
         })
 
     companion object {
+        const val DEFAULT_STATION_INSTRUCTIONS =
+            "Lead with what changed and why it matters to the listener. Use plain, conversational language and concrete details. " +
+                "Name the source of key claims, say what is still uncertain, and cover each story once."
+
         val morningCommute = StationProfile(
             id = UUID.nameUUIDFromBytes("morning-commute".toByteArray()).toString(),
-            name = "Morning Commute", mode = StationMode.SCHEDULED
+            name = "Morning Commute", mode = StationMode.SCHEDULED, instructions = ""
         )
 
         fun from(json: JSONObject): StationProfile {
