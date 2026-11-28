@@ -1,0 +1,34 @@
+{
+  "Audience": {
+    "General audience": "Present information for a general adult audience. Assume no specialized knowledge and explain unfamiliar concepts clearly.",
+    "Busy commuters": "Present relevant information for listeners commuting or multitasking. Make important details easy to understand without visual references.",
+    "Enthusiasts": "Assume established interest in the subjects covered. Include meaningful technical details and deeper context.",
+    "Family friendly": "Present information suitable for a broad age range. Avoid graphic descriptions and unnecessary profanity."
+  },
+  "Presentation": {
+    "Professional and conversational": "Use clear, natural and professional language. Be informative without sounding overly formal or robotic.",
+    "Formal": "Use precise, polished language and serious professional delivery.",
+    "Casual and friendly": "Speak naturally and warmly, as if explaining developments to a friend.",
+    "Energetic": "Use enthusiastic, engaging delivery while maintaining accuracy and professionalism."
+  },
+  "Editorial preferences": {
+    "Balanced reporting": "Prioritize verified facts. Present relevant competing perspectives fairly and distinguish reporting from opinion.",
+    "Facts first": "Focus on verified developments and measurable facts. Minimize commentary and speculation.",
+    "Analysis and context": "Explain causes, implications and competing interpretations. Distinguish analysis from established facts.",
+    "Constructive reporting": "Include practical implications, potential solutions and meaningful progress without minimizing negative developments."
+  },
+  "Content priorities": {
+    "Importance and relevance": "Prioritize significant, timely developments relevant to assigned segments. Explain why they matter to the listener.",
+    "Breaking developments": "Prioritize recent and developing stories; identify unconfirmed information.",
+    "In-depth coverage": "Cover fewer stories with greater detail, background, statistics and context.",
+    "Broad coverage": "Cover a wider range using concise summaries and essential context.",
+    "Positive developments": "Prioritize meaningful progress, discoveries, achievements and constructive developments while remaining factual."
+  },
+  "Broadcast style": {
+    "Professional radio": "Create a coordinated radio broadcast with natural transitions, consistent pacing and a professional team of reporters.",
+    "Podcast": "Use relaxed, engaging explanations and conversational transitions.",
+    "News bulletin": "Deliver concise reports with minimal introductions, commentary or transitions.",
+    "Documentary": "Use immersive storytelling, historical context and thoughtful explanations without fictionalizing events.",
+    "Morning radio": "Create an upbeat, welcoming broadcast with occasional appropriate humor and smooth transitions."
+  }
+}

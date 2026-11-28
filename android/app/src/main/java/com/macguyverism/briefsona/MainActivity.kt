@@ -185,6 +185,7 @@ private fun Briefsona() {
             }
         }) { insets ->
             BoxWithConstraints(Modifier.padding(insets).fillMaxSize()) {
+                val viewportHeight = maxHeight
                 val scroll = rememberScrollState()
                 Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -218,7 +219,7 @@ private fun Briefsona() {
                             }
                         )
                         "Stations" -> screenState.SaveableStateProvider("station-pages") {
-                            StationPages(scroll, stations.value, morning, visible.isNotEmpty(),
+                            StationPages(scroll, viewportHeight, stations.value, morning, visible.isNotEmpty(),
                                 status = status,
                                 retrievePublished = if (endpoint != null && visible.any { it.remote }) {
                                     { Retrieval.request(context, "") }

@@ -39,6 +39,7 @@ class Section(NamedTuple):
     words: int
     guidance: str
     random_position: bool = False
+    reporter_id: str | None = None
 
 
 def station_sections(profile):
@@ -65,9 +66,31 @@ def station_sections(profile):
             random_position = row.get("random_position", profile.get("random", False))
             template = title if title in templates and title not in ("Opening headlines", "Closing") else None
         words, guide = templates.get(template, (250, "Report verified developments relevant to this segment."))
-        lineup.append(Section(title, template, words, (guide + " " + row.get("instructions", "")).strip(), random_position))
+        lineup.append(Section(title, template, words, " ".join((guide, row.get("instructions", ""), row.get("station_override", ""))).strip(), random_position, row.get("reporter_id")))
 
     return lineup
+
+
+def reporter_delivery(section, profile):
+    legacy = (*presenters[section.template or "Opening headlines"], 1.0)
+    library = (profile or {}).get("reporters")
+    if library is None:
+        return legacy
+    reporter = library.get(section.reporter_id) or library.get(profile.get("default_reporter", "samantha"))
+    if not isinstance(reporter, dict):
+        raise ValueError("Missing default reporter")
+    name, voice = reporter["name"].strip(), reporter["voice"].lower()
+    speed = float(reporter.get("speaking_speed", 1))
+    if not name or voice not in {"nova", "coral", "shimmer", "onyx", "echo", "ash"} or not 0.75 <= speed <= 1.5:
+        raise ValueError("Invalid reporter settings")
+    style = reporter.get("markdown", "")
+    for trait in ("Warmth", "Professionalism", "Humor", "Enthusiasm", "Confidence", "Analytical depth"):
+        if trait in reporter:
+            value = reporter[trait]
+            if not isinstance(value, int) or not 0 <= value <= 100:
+                raise ValueError("Invalid reporter trait")
+            style += f"\n{trait}: {value}%"
+    return name, voice, style, speed
 
 
 def broadcast_order(reports):
@@ -107,6 +130,8 @@ def produce(day):
     No headings, bullet points, markdown or spoken URLs. Balanced, thoughtful and professional.
     If evidence is thin, keep the segment short or omit it. Do not make up new current events. Exclude all sports except verified New England Patriots standings following a completed game. Omit standings if not verified."""
 
+    if profile and "reporters" in profile:
+        instructions = Path(__file__).with_name("master").joinpath("Master.md").read_text()
     instructions += (
         " Each presenter introduces themselves only once in the entire edition. "
         "A returning presenter goes straight into the report without another introduction or name sign-off. "
@@ -140,7 +165,7 @@ def produce(day):
             continue
         if template not in ("Opening headlines", "Closing", "Daily Detour"):
             guidance += ' If none of these articles are suitable for this segment, return exactly OMIT.'
-        presenter, _, style = presenters[template or "Opening headlines"]
+        presenter, _, style, _ = reporter_delivery(section, profile)
         introduction = (
             "You have already appeared in this edition. Do not introduce yourself again."
             if presenter in heard_presenters
@@ -187,7 +212,8 @@ def produce(day):
 
     final = out / ("chatgpt-radio-" + date + ".mp3")
     duration = render_episode([(section.title, text) for section, text in generated], out, final, ai,
-                              [section.template for section, _ in generated])
+                              [section.template for section, _ in generated],
+                              [reporter_delivery(section, profile) for section, _ in generated])
 
     if not 0 < duration <= 1740:
         raise RuntimeError("Invalid episode duration")

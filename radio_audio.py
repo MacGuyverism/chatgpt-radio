@@ -66,18 +66,18 @@ def chunks(text):
     if current:
         yield current
 
-def render_episode(generated,out,final,ai,templates=None):
+def render_episode(generated,out,final,ai,templates=None,deliveries=None):
     parts=[]
     boundaries=[]
     for i,(title,text) in enumerate(generated):
         template = templates[i] if templates is not None else title
-        name,voice,style=presenters[template or "Opening headlines"]
+        name,voice,style,speed = deliveries[i] if deliveries is not None else (*presenters[template or "Opening headlines"], 1.0)
         boundaries.append((title, len(parts), name))
         speech=[]
         for j,chunk in enumerate(chunks(text)):
             raw=out / f"voice-{i:02d}-{j:02d}.mp3"
             raw.write_bytes(ai("audio/speech",{"model":"gpt-4o-mini-tts","voice":voice,
-                "input":chunk,"instructions":style+" Clear American English, natural pauses.",
+                "input":chunk,"speed":speed,"instructions":style+" Clear American English, natural pauses.",
                 "response_format":"mp3"}))
             wav=raw.with_suffix(".wav")
             normalize(raw,wav,-16)

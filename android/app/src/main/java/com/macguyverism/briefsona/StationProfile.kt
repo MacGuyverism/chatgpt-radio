@@ -16,9 +16,13 @@ internal data class StationSegment(
     val cue: String? = null,
     val enabled: Boolean = true,
     val instructions: String = "",
-    val randomPosition: Boolean = false
+    val randomPosition: Boolean = false,
+    val definitionId: String = id,
+    val reporterId: String? = null,
+    val stationOverride: String = ""
 ) {
     fun json() = JSONObject().put("id", id).put("name", name).put("duration_seconds", durationSeconds ?: JSONObject.NULL)
+        .put("definition_id", definitionId).put("reporter_id", reporterId).put("station_override", stationOverride)
         .put("random_position", randomPosition).put("cue", cue ?: JSONObject.NULL).put("enabled", enabled).put("instructions", instructions)
 
     companion object {
@@ -27,6 +31,9 @@ internal data class StationSegment(
             durationSeconds = if (json.isNull("duration_seconds")) null else json.getInt("duration_seconds"),
             cue = json.optString("cue").takeUnless { json.isNull("cue") },
             enabled = json.optBoolean("enabled", true), instructions = json.optString("instructions"),
+            definitionId = json.optString("definition_id", json.getString("id")),
+            reporterId = json.optString("reporter_id").takeIf { it.isNotBlank() },
+            stationOverride = json.optString("station_override"),
             randomPosition = json.optBoolean("random_position", legacyRandom)
         )
     }
@@ -39,11 +46,12 @@ internal data class StationProfile(
     val mode: StationMode = StationMode.MANUAL,
     val segments: List<StationSegment> = listOf(StationSegment(name = "Opening"), StationSegment(name = "Closing")),
     val icon: String = "◉",
-    val instructions: String = DEFAULT_STATION_INSTRUCTIONS
+    val instructions: String = DEFAULT_STATION_INSTRUCTIONS,
+    val iconColor: String = "#F5B144",
 ) {
     fun duplicate() = copy(
         id = UUID.randomUUID().toString(), name = "$name (copy)",
-        segments = segments.map { it.copy(id = UUID.randomUUID().toString()) }
+        segments = segments.map { val fresh = UUID.randomUUID().toString(); it.copy(id = fresh, definitionId = fresh) }
     )
 
     val canAddSegment: Boolean get() = segments.size - 2 < (minutes / 3).coerceAtMost(20)
@@ -85,7 +93,7 @@ internal data class StationProfile(
     }
 
     fun json() = JSONObject().put("id", id).put("name", name).put("minutes", minutes)
-        .put("icon", icon).put("instructions", instructions)
+        .put("icon", icon).put("iconColor", iconColor).put("instructions", instructions)
         .put("mode", mode.name).put("segments", JSONArray().apply {
             segments.forEachIndexed { index, segment ->
                 put(segment.json()
@@ -138,7 +146,7 @@ internal data class StationProfile(
             }
             return StationProfile(json.getString("id"), json.getString("name"), json.getInt("minutes"),
                 StationMode.valueOf(json.getString("mode")),
-                segments, json.optString("icon", "◉"), json.optString("instructions"))
+                segments, json.optString("icon", "◉"), json.optString("instructions"), json.optString("iconColor", "#F5B144"))
         }
     }
 }

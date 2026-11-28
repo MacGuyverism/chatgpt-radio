@@ -3,7 +3,6 @@ package com.macguyverism.briefsona
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.RectF
 import android.util.LruCache
 import android.util.Xml
 import com.caverock.androidsvg.SVG
@@ -89,7 +88,9 @@ internal class ReporterArtwork(context: Context) {
         }
         writer.flush()
         val bitmap = Bitmap.createBitmap(pixels, pixels, Bitmap.Config.ARGB_8888)
-        SVG.getFromString(output.toString()).renderToCanvas(Canvas(bitmap), RectF(0f, 0f, pixels.toFloat(), pixels.toFloat()))
+        val canvas = Canvas(bitmap)
+        canvas.scale(pixels / 256f, pixels / 256f)
+        SVG.getFromString(output.toString()).renderToCanvas(canvas, android.graphics.RectF(0f, 0f, 256f, 256f))
         cache.put(key, bitmap)
         return bitmap
     }

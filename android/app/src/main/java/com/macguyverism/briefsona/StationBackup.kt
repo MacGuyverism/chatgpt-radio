@@ -20,7 +20,11 @@ class StationBackup(context: Context, params: WorkerParameters) : CoroutineWorke
         backupLock.withLock {
             val dao = StationDatabase.get(applicationContext)
             val pending = dao.pending()
-            if (pending.isEmpty()) return@withLock Result.success()
+            val reporters = applicationContext.getSharedPreferences("reporter_profiles", Context.MODE_PRIVATE)
+            val snapshot = reporters.all
+            val revision = snapshot["_revision"] as? Long ?: 0L
+            val syncReporters = snapshot["_synced"] != revision
+            if (pending.isEmpty() && !syncReporters) return@withLock Result.success()
 
             val origin = BuildConfig.STATION_BACKUP_ORIGIN
             val key = BuildConfig.STATION_BACKUP_KEY
@@ -38,6 +42,29 @@ class StationBackup(context: Context, params: WorkerParameters) : CoroutineWorke
                 return@withLock if (retry) Result.retry() else Result.success()
             }
             var retry = false
+            if (syncReporters) {
+                try {
+                    val response = api.jsonPost("/rest/v1/rpc/sync_briefsona_reporters",
+                        JSONObject().put("local_revision", revision).put("local_library",
+                            JSONObject(snapshot.filterKeys { !it.startsWith("_") })), session.token)
+                    withContext(Dispatchers.Main) {
+                        if (reporters.getLong("_revision", 0) == revision) {
+                            val remoteRevision = response.optLong("revision", revision)
+                            val changes = reporters.edit()
+                            if (remoteRevision > revision) {
+                                val remote = response.getJSONObject("library")
+                                for (key in remote.keys()) {
+                                    when (val value = remote.get(key)) {
+                                        is String -> changes.putString(key, value)
+                                        is Boolean -> changes.putBoolean(key, value)
+                                    }
+                                }
+                            }
+                            changes.putLong("_revision", remoteRevision).putLong("_synced", remoteRevision).apply()
+                        }
+                    }
+                } catch (_: IOException) { retry = true }
+            }
             pending.forEach { record ->
                 try {
                     val profile = record.decode()
@@ -77,12 +104,16 @@ private class BackupHttpError(val status: Int) : IOException("Backup HTTP $statu
 private fun IOException.isRetryable(): Boolean =
     this !is java.io.FileNotFoundException && (this !is BackupHttpError || status == 408 || status == 429 || status >= 500)
 
-private class StationBackupApi(private val context: Context, private val origin: String, private val key: String) {
+internal class StationBackupApi(private val context: Context, private val origin: String, private val key: String) {
     private val identity = AtomicFile(File(context.noBackupFilesDir, "station-backup-session.json"))
 
     data class Session(val userId: String, val token: String, val refresh: String, val expiresAt: Long)
 
-    fun session(): Session {
+    fun session(): Session = synchronized(sessionLock) { loadSession() }
+
+    companion object { private val sessionLock = Any() }
+
+    private fun loadSession(): Session {
         try {
             val previous = if (identity.baseFile.exists()) {
                 identity.openRead().bufferedReader().use { JSONObject(it.readText()) }
@@ -136,7 +167,7 @@ private class StationBackupApi(private val context: Context, private val origin:
                 .put("station_profile", JSONObject(record.profile)), session.token)
     }
 
-    private fun jsonPost(path: String, body: JSONObject, token: String? = null): JSONObject {
+    internal fun jsonPost(path: String, body: JSONObject, token: String? = null): JSONObject {
         val bytes = body.toString().toByteArray()
         val response = post(path, token, "application/json", bytes.size.toLong()) { it.write(bytes) }
         return if (response.isBlank() || response == "null") JSONObject() else JSONObject(response)

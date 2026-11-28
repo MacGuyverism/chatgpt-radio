@@ -38,6 +38,19 @@ jobs:
             echo "BRIEFSONA_DEBUG_PASSWORD_PATH=$RUNNER_TEMP/briefsona-debug-password"
             echo "BRIEFSONA_DEBUG_BUILD_NUMBER=$GITHUB_RUN_NUMBER"
           } >> "$GITHUB_ENV"
+      - name: Cache offline reporter samples
+        if: github.event_name != 'pull_request' && github.ref_name == 'feature/article-chapters-reliability'
+        uses: actions/cache@v4
+        with:
+          path: android/app/src/main/assets/reporter-voices
+          key: briefsona-reporter-samples-v1
+      - name: Prepare offline reporter samples
+        if: github.event_name != 'pull_request' && github.ref_name == 'feature/article-chapters-reliability'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python -m pip install -r requirements.txt
+          python radio_preview.py --record-samples android/app/src/main/assets/reporter-voices
       - run: gradle -p android testDebugUnitTest assembleDebug
         env:
           BRIEFSONA_PROJECT_URL: ${{ secrets.SUPABASE_URL }}

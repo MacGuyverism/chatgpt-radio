@@ -27,6 +27,9 @@ internal abstract class StationDao {
     @Query("SELECT * FROM StationRecord ORDER BY name COLLATE NOCASE, id")
     abstract fun observe(): Flow<List<StationRecord>>
 
+    @Query("SELECT * FROM StationRecord")
+    abstract suspend fun allRecords(): List<StationRecord>
+
     @Query("SELECT * FROM StationRecord WHERE backup != 'Backed up'")
     abstract suspend fun pending(): List<StationRecord>
 
@@ -60,8 +63,16 @@ internal abstract class StationDao {
         val saved = find(profile.id)?.decode() ?: profile
         val position = saved.segments.find { it.id == segment.id }?.randomPosition ?: segment.randomPosition
         val committed = saved.withSegment(segment.copy(randomPosition = position))
-        save(committed)
-        return committed
+        fun propagate(station: StationProfile): StationProfile = station.copy(segments = station.segments.map {
+            if (it.definitionId == segment.definitionId) it.copy(name = segment.name, instructions = segment.instructions) else it
+        })
+        for (record in allRecords()) {
+            if (record.id == committed.id) continue
+            val previous = record.decode()
+            val updated = propagate(previous)
+            if (updated != previous) save(updated)
+        }
+        return propagate(committed).also { save(it) }
     }
 
     @Transaction

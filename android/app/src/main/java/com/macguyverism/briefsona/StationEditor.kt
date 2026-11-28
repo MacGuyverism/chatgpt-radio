@@ -28,7 +28,7 @@ import java.time.Instant
 import kotlin.math.roundToInt
 
 @Composable
-internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, morning: StationProfile,
+internal fun StationPages(scroll: ScrollState, viewportHeight: androidx.compose.ui.unit.Dp, records: List<StationRecord>, morning: StationProfile,
     playable: Boolean, status: String, retrievePublished: (() -> Unit)?, loadStation: () -> Unit, content: @Composable () -> Unit) {
     val context = LocalContext.current
     val dao = remember(context) { StationDatabase.get(context) }
@@ -114,7 +114,7 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Box(Modifier.size(46.dp).background(colors.primary.copy(alpha = .12f), RoundedCornerShape(8.dp)),
-                            contentAlignment = Alignment.Center) { Text(profile.icon, color = colors.primary) }
+                            contentAlignment = Alignment.Center) { StationIcon(profile.icon, profile.iconColor) }
                         Column(Modifier.weight(1f)) {
                             Text(profile.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                             Text("${profile.minutes} minutes · ${profile.segments.size} segments", color = colors.onSurfaceVariant)
@@ -148,7 +148,7 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
     }
 
     if (reportersOpen) {
-        ReporterLibrary(scroll) { reportersOpen = false }
+        Column(Modifier.fillMaxWidth().height(viewportHeight)) { ReporterLibrary(scroll) { reportersOpen = false } }
         return
     }
     val lineup = remember(lineupJson) { lineupJson?.let { StationProfile.from(JSONObject(it)) } }
@@ -172,12 +172,40 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
             Text(heading.uppercase(), Modifier.align(Alignment.Center), color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold, letterSpacing = 2.sp, style = MaterialTheme.typography.titleLarge)
             if (segment == null && lineup != null) {
-                IconButton(onClick = {
-                    error = null
-                    segmentJson = StationSegment(name = "").json().toString()
-                }, enabled = !saving && lineup.canAddSegment, modifier = Modifier.align(Alignment.CenterEnd)
-                    .semantics { contentDescription = "Add segment" }) { Text("⊕") }
+                var chooseSegment by remember { mutableStateOf(false) }
+                Box(Modifier.align(Alignment.CenterEnd)) {
+                    IconButton(onClick = { chooseSegment = true }, enabled = !saving && lineup.canAddSegment,
+                        modifier = Modifier.semantics { contentDescription = "Add segment" }) { Text("⊕") }
+                    DropdownMenu(chooseSegment, { chooseSegment = false }) {
+                        DropdownMenuItem(text = { Text("Create new segment") }, onClick = {
+                            chooseSegment = false
+                            segmentJson = StationSegment(name = "").json().toString()
+                        })
+                        segmentTemplates.forEach { (name, instructions) ->
+                            DropdownMenuItem(text = { Text("Template · $name") }, onClick = {
+                                chooseSegment = false
+                                segmentJson = StationSegment(name = name, instructions = instructions).json().toString()
+                            })
+                        }
+                        val stations = (listOf(lineup, morning) + records.map { it.decode() }).distinctBy { it.id }
+                        stations.forEach { source ->
+                            source.segments.drop(1).dropLast(1).forEach { existing ->
+                                DropdownMenuItem(text = { Text(existing.name + " · " + source.name) }, onClick = {
+                                    chooseSegment = false
+                                    segmentJson = existing.copy(id = java.util.UUID.randomUUID().toString(), durationSeconds = null)
+                                        .json().toString()
+                                })
+                            }
+                        }
+                    }
+                }
             }
+        }
+    } else if (!editingSchedule && !soundBitesOpen) {
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Text(heading, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.headlineSmall)
+            IconButton(onClick = ::goBack, modifier = Modifier.align(Alignment.CenterStart)
+                .semantics { contentDescription = backLabel }) { Text("<", color = MaterialTheme.colorScheme.primary) }
         }
     } else {
         TextButton(onClick = ::goBack, enabled = !saving) {
@@ -312,10 +340,8 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
 
     OutlinedTextField(draft.name, { edit(draft.copy(name = it)) }, label = { RequiredNameLabel("Station name") },
         singleLine = true, modifier = Modifier.fillMaxWidth(), enabled = !saving)
-    OutlinedTextField(draft.icon, { edit(draft.copy(icon = it)) }, label = { Text("Station icon") },
-        singleLine = true, enabled = !saving)
-    OutlinedTextField(draft.instructions, { edit(draft.copy(instructions = it)) },
-        label = { Text("Station-wide broadcast instructions") }, modifier = Modifier.fillMaxWidth(), enabled = !saving)
+    StationIconPicker(draft) { edit(it) }
+    StationPromptEditor(draft.instructions) { edit(draft.copy(instructions = it)) }
     DurationSlider("Target duration", draft.minutes, 5..60, 54, !saving,
         format = { "$it minutes" }, formatEndpoint = { "$it min" }) { minutes ->
         if (minutes != draft.minutes) edit(draft.copy(minutes = minutes))

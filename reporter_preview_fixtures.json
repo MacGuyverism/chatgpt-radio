@@ -1,0 +1,52 @@
+[
+  {
+    "category": "Local",
+    "headline": "New community park opens",
+    "facts": "Saturday opening; $2.4m cost; 18 months construction; walking trails; playground; free admission; picnic area"
+  },
+  {
+    "category": "Local",
+    "headline": "Library extends weekend hours",
+    "facts": "Starting next month; Saturday and Sunday 9\u20135; two additional staff; study rooms; free workshops; six-month pilot"
+  },
+  {
+    "category": "Local",
+    "headline": "Town launches electric shuttle",
+    "facts": "Three vehicles; downtown loop; 12 stops; every 20 minutes; free first month; wheelchair accessible"
+  },
+  {
+    "category": "Finance",
+    "headline": "Fictional manufacturer expands factory",
+    "facts": "$18m investment; 120 planned jobs; construction begins spring; two production lines; completion next year; existing site"
+  },
+  {
+    "category": "Finance",
+    "headline": "Fictional retailer reports quarterly growth",
+    "facts": "Revenue $84m versus $75m; online sales up 16%; operating costs up 5%; two stores opened; no forecast provided"
+  },
+  {
+    "category": "Science",
+    "headline": "Observatory completes telescope upgrade",
+    "facts": "1.5m mirror; two-year project; improved infrared sensor; first observations next month; university team; public viewing nights planned"
+  },
+  {
+    "category": "Science",
+    "headline": "Researchers test water-saving greenhouse",
+    "facts": "12-week trial; 30% less water than control; 60 plants per group; same crop variety; yield similar; larger trial planned"
+  },
+  {
+    "category": "Science",
+    "headline": "Solar-powered research buoy deployed",
+    "facts": "Coastal deployment; six sensors; measures temperature and salinity; hourly readings; six-month mission; data publicly available"
+  },
+  {
+    "category": "Sports",
+    "headline": "Fictional hometown team wins final",
+    "facts": "3\u20132 score; winning goal late in second half; sold-out 4,000-seat venue; first title in eight years; goalkeeper made six saves"
+  },
+  {
+    "category": "Sports",
+    "headline": "Community cycling event sets registration record",
+    "facts": "850 registrations versus 620 last year; 15km and 40km routes; Sunday start; volunteer repair stations; proceeds support trail maintenance"
+  }
+]

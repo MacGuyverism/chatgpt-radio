@@ -1,0 +1,102 @@
+[
+  {
+    "id": "radio",
+    "label": "Radio",
+    "file": "01_radio.svg"
+  },
+  {
+    "id": "microphone",
+    "label": "Microphone",
+    "file": "02_microphone.svg"
+  },
+  {
+    "id": "headphones",
+    "label": "Headphones",
+    "file": "03_headphones.svg"
+  },
+  {
+    "id": "radio_tower",
+    "label": "Radio Tower",
+    "file": "04_radio_tower.svg"
+  },
+  {
+    "id": "justice",
+    "label": "Justice",
+    "file": "05_justice.svg"
+  },
+  {
+    "id": "newspaper",
+    "label": "Newspaper",
+    "file": "06_newspaper.svg"
+  },
+  {
+    "id": "globe",
+    "label": "Globe",
+    "file": "07_globe.svg"
+  },
+  {
+    "id": "atom",
+    "label": "Atom",
+    "file": "08_atom.svg"
+  },
+  {
+    "id": "microscope",
+    "label": "Microscope",
+    "file": "09_microscope.svg"
+  },
+  {
+    "id": "calendar",
+    "label": "Calendar",
+    "file": "10_calendar.svg"
+  },
+  {
+    "id": "camera",
+    "label": "Camera",
+    "file": "11_camera.svg"
+  },
+  {
+    "id": "video_camera",
+    "label": "Video Camera",
+    "file": "12_video_camera.svg"
+  },
+  {
+    "id": "satellite",
+    "label": "Satellite",
+    "file": "13_satellite.svg"
+  },
+  {
+    "id": "podcast",
+    "label": "Podcast",
+    "file": "14_podcast.svg"
+  },
+  {
+    "id": "weather",
+    "label": "Weather",
+    "file": "15_weather.svg"
+  },
+  {
+    "id": "finance",
+    "label": "Finance",
+    "file": "16_finance.svg"
+  },
+  {
+    "id": "government",
+    "label": "Government",
+    "file": "17_government.svg"
+  },
+  {
+    "id": "alert",
+    "label": "Alert",
+    "file": "18_alert.svg"
+  },
+  {
+    "id": "interview",
+    "label": "Interview",
+    "file": "19_interview.svg"
+  },
+  {
+    "id": "book",
+    "label": "Book",
+    "file": "20_book.svg"
+  }
+]

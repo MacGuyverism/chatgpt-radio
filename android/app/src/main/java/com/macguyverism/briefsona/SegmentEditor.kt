@@ -139,7 +139,12 @@ internal fun EditSegment(segment: StationSegment, profile: StationProfile, pinne
                 onCheckedChange = { update(segment.copy(enabled = it)) })
         }
         HorizontalDivider()
-        TextButton(onClick = {}, enabled = false) { Text("Reporter") }
+        ReporterAssignment(segment.reporterId) { update(segment.copy(reporterId = it)) }
+        OutlinedTextField(segment.stationOverride, { update(segment.copy(stationOverride = it)) },
+            label = { Text("Station-specific instructions") }, modifier = Modifier.fillMaxWidth())
+        if (segment.definitionId != segment.id) {
+            TextButton(onClick = { update(segment.copy(definitionId = segment.id)) }) { Text("Make independent copy") }
+        }
         OutlinedTextField(segment.instructions, { update(segment.copy(instructions = it)) }, enabled = !saving,
             label = { Text("Content instructions") }, minLines = 3, modifier = Modifier.fillMaxWidth())
         if (!pinned) {

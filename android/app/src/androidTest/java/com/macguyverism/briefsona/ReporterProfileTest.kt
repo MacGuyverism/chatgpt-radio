@@ -24,7 +24,7 @@ class ReporterProfileTest {
             tap("Legacy reporter")
             tap("Choose and customize avatar")
             compose.onNodeWithContentDescription("Wear glasses").performScrollTo().performClick()
-            tap("←  Reporter profile")
+            compose.onNodeWithContentDescription("Back").performClick()
             tap("Choose and customize avatar")
             compose.onNodeWithContentDescription("Wear glasses").assertIsOff()
             compose.onNodeWithContentDescription("Wear glasses").performScrollTo().performClick()

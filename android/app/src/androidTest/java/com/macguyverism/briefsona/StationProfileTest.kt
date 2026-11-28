@@ -33,7 +33,10 @@ class StationProfileTest {
         val name = "Station ${UUID.randomUUID()}"
         compose.onNodeWithText("Stations").performClick()
         compose.onNodeWithContentDescription("Add station").performClick()
+        compose.onNodeWithText("Station instructions").performScrollTo().performClick()
+        compose.onNodeWithText("Edit Markdown").performScrollTo().performClick()
         compose.onNodeWithText(StationProfile.DEFAULT_STATION_INSTRUCTIONS).assertExists()
+        compose.onNodeWithText("Station instructions").performScrollTo().performClick()
         val target = compose.onNodeWithContentDescription("Target duration")
         target.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "30 minutes"))
         for (minutes in listOf(5, 37, 60)) {
@@ -48,9 +51,9 @@ class StationProfileTest {
         compose.onNodeWithText("Pause schedule").performScrollTo().performClick()
         compose.onNodeWithText("Save schedule").performScrollTo().performClick()
         compose.waitUntil(30_000) {
-            compose.onAllNodesWithText("Back to Stations").fetchSemanticsNodes().isNotEmpty()
+            compose.onAllNodesWithContentDescription("Back to Stations").fetchSemanticsNodes().isNotEmpty()
         }
-        compose.onNodeWithText("Back to Stations").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Back to Stations").performScrollTo().performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText(name).fetchSemanticsNodes().isNotEmpty() }
 
         compose.activityRule.scenario.recreate()
