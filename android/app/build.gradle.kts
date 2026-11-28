@@ -33,7 +33,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = 2
-        versionName = "0.0.23"
+        versionName = "0.0.31"
     }
 
     val debugKeystore = providers.environmentVariable("BRIEFSONA_DEBUG_KEYSTORE_PATH").orNull

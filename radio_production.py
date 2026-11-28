@@ -105,6 +105,19 @@ def broadcast_order(reports):
     return lineup
 
 
+def finalize_shuffled_introductions(generated, profile):
+    """Add first appearances after omissions and random-slot placement are final."""
+    seen = set()
+    result = []
+    for section, script in generated:
+        presenter, _, _, _ = reporter_delivery(section, profile)
+        if presenter not in seen:
+            script = f"This is {presenter}. {script}"
+            seen.add(presenter)
+        result.append((section, script))
+    return result
+
+
 def produce(day):
     raw_profile = os.environ.get("RADIO_STATION_PROFILE")
     profile = json.loads(raw_profile) if raw_profile else None
@@ -171,6 +184,8 @@ def produce(day):
             if presenter in heard_presenters
             else "This is your first report for this edition. Introduce yourself briefly and naturally."
         )
+        if shuffle_requested and profile and "reporters" in profile:
+            introduction = "Do not introduce yourself. The editor adds introductions after ordering."
         handoff = ""
         if not shuffle_requested and previous_presenter and previous_presenter != presenter:
             handoff = f" You may briefly acknowledge the previous presenter, {previous_presenter}, if it flows naturally."
@@ -203,6 +218,8 @@ def produce(day):
     if not any(section.template not in ("Opening headlines", "Closing", "Daily Detour") for section, _ in generated):
         raise RuntimeError("No substantive news was produced")
     generated = broadcast_order(generated)
+    if shuffle_requested and profile and "reporters" in profile:
+        generated = finalize_shuffled_introductions(generated, profile)
     script = "\n\n".join(text for _, text in generated)
     word_count = len(script.split())
     print("Total script words", word_count, flush=True)

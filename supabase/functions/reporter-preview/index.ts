@@ -19,7 +19,14 @@ Deno.serve(async request => {
       headers: { Authorization: authorization, apikey: Deno.env.get("SUPABASE_ANON_KEY")! }
     })
     if (!user.ok) return new Response(null, { status: 401 })
-    const { headline, voice, speed, personality } = await request.json()
+    let payload
+    try {
+      const body = await request.text()
+      if (body.length > 16000) return new Response(null, { status: 413 })
+      payload = JSON.parse(body)
+      if (!payload || typeof payload !== "object") return new Response(null, { status: 400 })
+    } catch { return new Response(null, { status: 400 }) }
+    const { headline, voice, speed, personality } = payload
     const fixture = fixtures.find(x => x.headline === headline)
     if (!fixture || !voices.has(voice) || !Number.isFinite(speed) || speed < .75 || speed > 1.5 ||
         typeof personality !== "string" || personality.length > 12000) return new Response(null, { status: 400 })
