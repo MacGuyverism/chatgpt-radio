@@ -47,6 +47,9 @@ class StationProfileTest {
         compose.onNodeWithText("Automatic").performClick()
         compose.onNodeWithText("Pause schedule").performScrollTo().performClick()
         compose.onNodeWithText("Save schedule").performScrollTo().performClick()
+        compose.waitUntil(30_000) {
+            compose.onAllNodesWithText("Back to Stations").fetchSemanticsNodes().isNotEmpty()
+        }
         compose.onNodeWithText("Back to Stations").performScrollTo().performClick()
         compose.waitUntil(5_000) { compose.onAllNodesWithText(name).fetchSemanticsNodes().isNotEmpty() }
 

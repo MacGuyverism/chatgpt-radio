@@ -1,0 +1,416 @@
+{
+  "avatars": [
+    {
+      "id": "avatar_001",
+      "file": "avatars/avatar_001.svg",
+      "category": "male",
+      "styles": [
+        "suit",
+        "casual",
+        "collared"
+      ],
+      "defaults": {
+        "skin_color": "#E8B994",
+        "hair_color": "#211D1B",
+        "clothing_color": "#344C75",
+        "background_color": "#91B5CB",
+        "clothing_style": "suit",
+        "glasses": false
+      }
+    },
+    {
+      "id": "avatar_002",
+      "file": "avatars/avatar_002.svg",
+      "category": "male",
+      "styles": [
+        "suit",
+        "casual",
+        "collared"
+      ],
+      "defaults": {
+        "skin_color": "#F5D7BF",
+        "hair_color": "#493127",
+        "clothing_color": "#26282D",
+        "background_color": "#B8C9A6",
+        "clothing_style": "suit",
+        "glasses": false
+      }
+    },
+    {
+      "id": "avatar_003",
+      "file": "avatars/avatar_003.svg",
+      "category": "male",
+      "styles": [
+        "suit",
+        "casual",
+        "collared"
+      ],
+      "defaults": {
+        "skin_color": "#593522",
+        "hair_color": "#94613D",
+        "clothing_color": "#777D85",
+        "background_color": "#D9B38C",
+        "clothing_style": "suit",
+        "glasses": false
+      }
+    },
+    {
+      "id": "avatar_004",
+      "file": "avatars/avatar_004.svg",
+      "category": "male",
+      "styles": [
+        "suit",
+        "casual",
+        "collared"
+      ],
+      "defaults": {
+        "skin_color": "#8B5639",
+        "hair_color": "#D7B56D",
+        "clothing_color": "#E7E5E0",
+        "background_color": "#B8A5D5",
+        "clothing_style": "suit",
+        "glasses": false
+      }
+    },
+    {
+      "id": "avatar_005",
+      "file": "avatars/avatar_005.svg",
+      "category": "male",
+      "styles": [
+        "suit",
+        "casual",
+        "collared"
+      ],
+      "defaults": {
+        "skin_color": "#B77D53",
+        "hair_color": "#A44B2D",
+        "clothing_color": "#923D49",
+        "background_color": "#D99BA7",
+        "clothing_style": "suit",
+        "glasses": false
+      }
+    },
+    {
+      "id": "avatar_006",
+      "file": "avatars/avatar_006.svg",
+      "category": "male",
+      "styles": [
+        "suit",
+        "casual",
+        "collared"
+      ],
+      "defaults": {
+        "skin_color": "#D6A078",
+        "hair_color": "#A8A8A8",
+        "clothing_color": "#426C54",
+        "background_color": "#B6BBC4",
+        "clothing_style": "suit",
+        "glasses": false
+      }
+    },
+    {
+      "id": "avatar_007",
+      "file": "avatars/avatar_007.svg",
+      "category": "male",
+      "styles": [
+        "suit",
+        "casual",
+        "collared"
+      ],
+      "defaults": {
+        "skin_color": "#E8B994",
+        "hair_color": "#211D1B",
+        "clothing_color": "#704B88",
+        "background_color": "#47677B",
+        "clothing_style": "suit",
+        "glasses": false
+      }
+    },
+    {
+      "id": "avatar_008",
+      "file": "avatars/avatar_008.svg",
+      "category": "male",
+      "styles": [
+        "suit",
+        "casual",
+        "collared"
+      ],
+      "defaults": {
+        "skin_color": "#F5D7BF",
+        "hair_color": "#493127",
+        "clothing_color": "#BB8650",
+        "background_color": "#D8C76F",
+        "clothing_style": "suit",
+        "glasses": false
+      }
+    },
+    {
+      "id": "avatar_009",
+      "file": "avatars/avatar_009.svg",
+      "category": "male",
+      "styles": [
+        "suit",
+        "casual",
+        "collared"
+      ],
+      "defaults": {
+        "skin_color": "#593522",
+        "hair_color": "#94613D",
+        "clothing_color": "#417D92",
+        "background_color": "#91B5CB",
+        "clothing_style": "suit",
+        "glasses": false
+      }
+    },
+    {
+      "id": "avatar_010",
+      "file": "avatars/avatar_010.svg",
+      "category": "male",
+      "styles": [
+        "suit",
+        "casual",
+        "collared"
+      ],
+      "defaults": {
+        "skin_color": "#8B5639",
+        "hair_color": "#D7B56D",
+        "clothing_color": "#C4879A",
+        "background_color": "#B8C9A6",
+        "clothing_style": "suit",
+        "glasses": false
+      }
+    },
+    {
+      "id": "avatar_011",
+      "file": "avatars/avatar_011.svg",
+      "category": "female",
+      "styles": [
+        "suit",
+        "casual",
+        "collared",
+        "blouse"
+      ],
+      "defaults": {
+        "skin_color": "#B77D53",
+        "hair_color": "#493127",
+        "clothing_color": "#674B38",
+        "background_color": "#D9B38C",
+        "clothing_style": "suit",
+        "glasses": false
+      }
+    },
+    {
+      "id": "avatar_012",
+      "file": "avatars/avatar_012.svg",
+      "category": "female",
+      "styles": [
+        "suit",
+        "casual",
+        "collared",
+        "blouse"
+      ],
+      "defaults": {
+        "skin_color": "#D6A078",
+        "hair_color": "#94613D",
+        "clothing_color": "#52613B",
+        "background_color": "#B8A5D5",
+        "clothing_style": "suit",
+        "glasses": false
+      }
+    },
+    {
+      "id": "avatar_013",
+      "file": "avatars/avatar_013.svg",
+      "category": "female",
+      "styles": [
+        "suit",
+        "casual",
+        "collared",
+        "blouse"
+      ],
+      "defaults": {
+        "skin_color": "#E8B994",
+        "hair_color": "#D7B56D",
+        "clothing_color": "#344C75",
+        "background_color": "#D99BA7",
+        "clothing_style": "suit",
+        "glasses": false
+      }
+    },
+    {
+      "id": "avatar_014",
+      "file": "avatars/avatar_014.svg",
+      "category": "female",
+      "styles": [
+        "suit",
+        "casual",
+        "collared",
+        "blouse"
+      ],
+      "defaults": {
+        "skin_color": "#F5D7BF",
+        "hair_color": "#A44B2D",
+        "clothing_color": "#26282D",
+        "background_color": "#B6BBC4",
+        "clothing_style": "suit",
+        "glasses": false
+      }
+    },
+    {
+      "id": "avatar_015",
+      "file": "avatars/avatar_015.svg",
+      "category": "female",
+      "styles": [
+        "suit",
+        "casual",
+        "collared",
+        "blouse"
+      ],
+      "defaults": {
+        "skin_color": "#593522",
+        "hair_color": "#A8A8A8",
+        "clothing_color": "#777D85",
+        "background_color": "#47677B",
+        "clothing_style": "suit",
+        "glasses": false
+      }
+    },
+    {
+      "id": "avatar_016",
+      "file": "avatars/avatar_016.svg",
+      "category": "female",
+      "styles": [
+        "suit",
+        "casual",
+        "collared",
+        "blouse"
+      ],
+      "defaults": {
+        "skin_color": "#8B5639",
+        "hair_color": "#211D1B",
+        "clothing_color": "#E7E5E0",
+        "background_color": "#D8C76F",
+        "clothing_style": "suit",
+        "glasses": false
+      }
+    },
+    {
+      "id": "avatar_017",
+      "file": "avatars/avatar_017.svg",
+      "category": "female",
+      "styles": [
+        "suit",
+        "casual",
+        "collared",
+        "blouse"
+      ],
+      "defaults": {
+        "skin_color": "#B77D53",
+        "hair_color": "#493127",
+        "clothing_color": "#923D49",
+        "background_color": "#91B5CB",
+        "clothing_style": "suit",
+        "glasses": false
+      }
+    },
+    {
+      "id": "avatar_018",
+      "file": "avatars/avatar_018.svg",
+      "category": "female",
+      "styles": [
+        "suit",
+        "casual",
+        "collared",
+        "blouse"
+      ],
+      "defaults": {
+        "skin_color": "#D6A078",
+        "hair_color": "#94613D",
+        "clothing_color": "#426C54",
+        "background_color": "#B8C9A6",
+        "clothing_style": "suit",
+        "glasses": false
+      }
+    },
+    {
+      "id": "avatar_019",
+      "file": "avatars/avatar_019.svg",
+      "category": "female",
+      "styles": [
+        "suit",
+        "casual",
+        "collared",
+        "blouse"
+      ],
+      "defaults": {
+        "skin_color": "#E8B994",
+        "hair_color": "#D7B56D",
+        "clothing_color": "#704B88",
+        "background_color": "#D9B38C",
+        "clothing_style": "suit",
+        "glasses": false
+      }
+    },
+    {
+      "id": "avatar_020",
+      "file": "avatars/avatar_020.svg",
+      "category": "female",
+      "styles": [
+        "suit",
+        "casual",
+        "collared",
+        "blouse"
+      ],
+      "defaults": {
+        "skin_color": "#F5D7BF",
+        "hair_color": "#A44B2D",
+        "clothing_color": "#BB8650",
+        "background_color": "#B8A5D5",
+        "clothing_style": "suit",
+        "glasses": false
+      }
+    }
+  ],
+  "palettes": {
+    "skin_color": [
+      "#F5D7BF",
+      "#E8B994",
+      "#D6A078",
+      "#B77D53",
+      "#8B5639",
+      "#593522"
+    ],
+    "hair_color": [
+      "#211D1B",
+      "#493127",
+      "#94613D",
+      "#D7B56D",
+      "#A44B2D",
+      "#A8A8A8"
+    ],
+    "clothing_color": [
+      "#344C75",
+      "#26282D",
+      "#777D85",
+      "#E7E5E0",
+      "#923D49",
+      "#426C54",
+      "#704B88",
+      "#BB8650",
+      "#417D92",
+      "#C4879A",
+      "#674B38",
+      "#52613B"
+    ],
+    "background_color": [
+      "#91B5CB",
+      "#B8C9A6",
+      "#D9B38C",
+      "#B8A5D5",
+      "#D99BA7",
+      "#B6BBC4",
+      "#47677B",
+      "#D8C76F"
+    ]
+  }
+}

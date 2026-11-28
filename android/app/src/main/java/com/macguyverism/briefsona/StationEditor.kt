@@ -36,6 +36,7 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
     var draftJson by rememberSaveable { mutableStateOf<String?>(null) }
     var lineupJson by rememberSaveable { mutableStateOf<String?>(null) }
     var segmentJson by rememberSaveable { mutableStateOf<String?>(null) }
+    var reportersOpen by rememberSaveable { mutableStateOf(false) }
     var soundBitesOpen by rememberSaveable { mutableStateOf(false) }
     var cueDraft by rememberSaveable { mutableStateOf<String?>(null) }
     val segment = remember(segmentJson) { segmentJson?.let { StationSegment.from(JSONObject(it)) } }
@@ -45,7 +46,7 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
     var error by rememberSaveable { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
     val draft = remember(draftJson) { draftJson?.let { StationProfile.from(JSONObject(it)) } }
-    LaunchedEffect(draft?.id, editingSegments, segment?.id, editingSchedule, soundBitesOpen) { scroll.scrollTo(0) }
+    LaunchedEffect(draft?.id, editingSegments, segment?.id, editingSchedule, soundBitesOpen, reportersOpen) { scroll.scrollTo(0) }
 
     fun edit(profile: StationProfile) {
         draftJson = profile.json().toString()
@@ -146,6 +147,10 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
         return
     }
 
+    if (reportersOpen) {
+        ReporterLibrary(scroll) { reportersOpen = false }
+        return
+    }
     val lineup = remember(lineupJson) { lineupJson?.let { StationProfile.from(JSONObject(it)) } }
     val heading = when {
         soundBitesOpen -> "Sound bites"
@@ -328,7 +333,8 @@ internal fun StationPages(scroll: ScrollState, records: List<StationRecord>, mor
     if (draft.id == morning.id || records.any { it.id == draft.id }) {
         OutlinedButton(onClick = { save(draft.duplicate(), copy = true) }, enabled = !saving) { Text("Create a copy") }
     }
-    listOf("Reporter library", "Produce broadcast now", "Delete station").forEach { label ->
+    OutlinedButton(onClick = { reportersOpen = true }, enabled = !saving) { Text("Reporter library") }
+    listOf("Produce broadcast now", "Delete station").forEach { label ->
         OutlinedButton(onClick = {}, enabled = false) { Text(label) }
     }
 }
